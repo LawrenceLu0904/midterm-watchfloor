@@ -125,7 +125,13 @@
   </div>
 
   <section class="wf-panel" aria-label="Key moments">
-    <div class="wf-ph"><h2>Key moments</h2><span class="wf-ph-sub">settlements, sharp swings and the largest bets on election night · click one to jump there</span></div>
+    <div class="wf-ph wf-mom-ph"><h2>Key moments</h2><span class="wf-ph-sub">swings, settlements, the largest bets, Reddit surges and big stock days · click one to jump there</span>
+      <div class="wf-seg" role="group" aria-label="Key-moment period" data-draw="moment-tabs">
+        <button type="button" class="wf-btn" data-mperiod="before" aria-pressed="false">Before election day</button>
+        <button type="button" class="wf-btn" data-mperiod="night" aria-pressed="true">Election night</button>
+        <button type="button" class="wf-btn" data-mperiod="after" aria-pressed="false">After</button>
+      </div>
+    </div>
     <div class="wf-moments">
       <ol class="wf-feed wf-mom-list" data-draw="moments"></ol>
       <div data-draw="moment-detail"></div>
@@ -172,16 +178,18 @@
     <summary>How to read this and what is left out</summary>
     <ul>
       <li>Race odds are Kalshi prices for "Democrat wins": hourly bid/ask midpoints for Senate and Governor races, and in the bet explorer the volume-weighted price of actual trades (per minute on election night, per 10 minutes otherwise). "Settled" is when Kalshi settled the market after media organizations called the race, close to the call but not the same moment.</li>
-      <li>Bets are Kalshi trades, which are anonymous. One bet is one taker order: all fills of the same contract and side at the same instant. Its size is what the taker paid. A bet "backs D" when it buys YES on the Democrat or NO on the Republican. The tape, the circles in the bet explorer and the key moments leave out orders priced above 97¢ or below 3¢ (collecting near-certain payouts); the flow lanes and totals include them.</li>
+      <li>Bets are Kalshi trades, which are anonymous. One bet is one taker order: all fills of the same contract and side at the same instant. Its size is what the taker paid. A bet "backs D" when it buys YES on the Democrat or NO on the Republican. The midterm markets include Kalshi's House + Senate balance-of-power market (Democrats sweep, Republicans sweep, or a split). There, only buying YES on a sweep counts as backing a party; YES on a split, and NO on any outcome, count as other. The tape, the circles in the bet explorer and the key moments leave out orders priced above 97¢ or below 3¢ (collecting near-certain payouts); the flow lanes and totals include them.</li>
       <li>Reddit counts come from the Arctic Shift archive of Reddit: national political subreddits, plus one main subreddit per state (r/texas, r/Pennsylvania …), so the map's "Social" layer shows where people were talking. Counts only, no post text.</li>
       <li>Bluesky is a sample: the top posts for each candidate's name and "&lt;state&gt; election" from Nov 3 11 AM to Nov 4 3 PM ET. It shows attention among popular posts, not total volume. X (Twitter) is not included because its read API is paid.</li>
-      <li>Key-moment posts are shown with Bluesky's and Reddit's own embeds, only after you click, and only from accounts with 25,000+ followers (Bluesky) or the national subreddits (Reddit). Nothing from those posts is stored on this site; deleted posts stop showing.</li>
+      <li>Key moments before election day are the sharpest 24-hour moves in chamber control and in Senate and Governor odds (moves that held for at least 12 hours), the largest bet in each of the six biggest-betting races, hours when the national political subreddits had at least 1.8× their usual comments for that hour, and days the S&amp;P 500 moved 1.5% or more. After election night: the most-traded races Kalshi settled later.</li>
+      <li>Key-moment posts are shown with Bluesky's, Reddit's and X's own embeds, only after you click: Bluesky posts from accounts with 25,000+ followers, Reddit posts with 50+ points from the national subreddits and the state's own subreddit, and X posts that were shared in such Reddit posts. Nothing from those posts is stored on this site; deleted posts stop showing.</li>
       <li>The House view colors whole states by settled seats, because district boundaries are not drawn. Several states redrew lines for 2026.</li>
       <li>Gas is AAA's daily regular-gas average as reported by Kalshi's settled AAA markets. Rain is the simple average of NOAA GHCN-Daily stations in each state, not weighted by population.</li>
       <li>Turnout markets: at 6 PM ET each day, the vote total Kalshi's ladder puts at 50/50. They are thin (median spread about 10¢), and the comparison is the most recent midterm Senate race in the state, so read direction, not level.</li>
       <li>Streams: eight election-night streams, four left- and four right-leaning. Chat counts come from the four YouTube streams that have a chat replay. Polymarket counts cover comments on its Senate control, House control and balance-of-power events.</li>
-      <li>All of Kalshi: every trade on the exchange from Nov 3 5 PM to Nov 4 9 AM ET, by category from Kalshi's series catalog ("Parlays" are Kalshi's combo markets; "Stocks" are its S&amp;P 500, Nasdaq and other index markets). Other hours are an estimate: markets that opened and closed within a week (games, crypto, daily weather and economics) with their settled volume spread evenly over their open hours, plus the midterm trades; longer-running markets are left out there. Volume is in contracts, which is what Kalshi shows as dollar volume.</li>
+      <li>All of Kalshi: every trade on the exchange from Nov 3 5 PM to Nov 4 11 AM ET, by category from Kalshi's series catalog ("Parlays" are Kalshi's combo markets; "Stocks" are its S&amp;P 500, Nasdaq and other index markets). Other hours are an estimate: markets that opened and closed within a week (games, crypto, daily weather and economics) with their settled volume spread evenly over their open hours, plus the midterm trades; longer-running markets are left out there. Volume is in contracts, which is what Kalshi shows as dollar volume.</li>
       <li>The market card follows Kalshi's layout: each outcome's chance is its last traded YES price; Yes and No show the last trade's prices, not the order book. "This market" lists every bet in the chosen market up to the cursor.</li>
+      <li>Beyond the midterms, the market picker has the most-traded Kalshi events in each category: sports games, crypto, stock indexes, other elections, finance, weather and more. They're the events with the most money bet on election night, plus the most-traded events that closed between Oct 4 and Nov 12. Their charts are hourly Kalshi prices (bid/ask midpoint, else the last trade) for up to six markets each. On election night the charts are per minute and include every bet. Clicking a bet in "Big · all Kalshi" opens its market when it's one of these.</li>
       <li>Stocks: daily closes of the S&amp;P 500, Nasdaq Composite and VIX from FRED. U.S. markets are closed overnight, so election night shows up in the Nov 4 close.</li>
       <li>Not here yet: polls, official vote counts, AP call times, X.</li>
     </ul>

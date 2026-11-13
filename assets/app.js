@@ -15,15 +15,15 @@
   const U = (y, m, d, h) => Date.UTC(y, m - 1, d, h) / 1000;
   // ET is UTC-4 until 2 AM on Nov 1, 2026 and UTC-5 after; the window holds no other change.
   const etOff = (t) => (t < U(2026, 11, 1, 6) ? 4 : 5) * 3600;
-  const N0 = U(2026, 11, 3, 22), N1 = U(2026, 11, 4, 14);   // per-minute detail window (Reddit, bets)
+  const N0 = U(2026, 11, 3, 22), N1 = U(2026, 11, 4, 16);   // per-minute detail window (Reddit, bets): Nov 3 5 PM - Nov 4 11 AM ET
   const RANGES = {night: [U(2026, 11, 3, 23), U(2026, 11, 4, 13)], week: [U(2026, 11, 1, 4), U(2026, 11, 9, 5)], campaign: [U(2026, 10, 4, 4), U(2026, 11, 12, 5)]};
   const C = {dem: '#3d8bff', rep: '#ff4d5a', ind: '#b48cff', mid: '#4a4f63', idle: '#25303d', none: '#121a24', fg: '#dbe4ee', muted: '#8a9bb0',
     amber: '#f0b44c', house: '#86b6ff', senate: '#e9eef5', social: '#c77dff', bsky: '#5fb3ff'};
   const DATASETS = ['states_geo', 'races', 'race_odds', 'milestones', 'control', 'gas', 'oil', 'weather_state', 'weather_grid', 'turnout_races',
     'turnout_daily', 'streams', 'chat', 'polymarket', 'bets_flow', 'bets_state', 'big_bets', 'reddit_hourly', 'reddit_night', 'bluesky', 'moments',
-    'kalshi_cats', 'kalshi_big', 'stocks'];
+    'kalshi_cats', 'kalshi_big', 'stocks', 'markets_index'];
   const WF = window.WF = {t: U(2026, 11, 4, 3), range: RANGES.night.slice(), rangeKey: 'night', layer: 'races', office: 'Senate', state: null,
-    race: 'CONTROLS-2026', moment: null, embedsOn: false, tape: 'market', playing: false, timer: null};
+    race: 'CONTROLS-2026', moment: null, mperiod: null, embedsOn: false, tape: 'market', playing: false, timer: null};
 
   // ------------------------------------------------------------------ helpers
   const ok = (id) => dash.data(id).status === 'ok';
@@ -150,8 +150,14 @@
       const chamber = id === 'CONTROLS-2026' ? 'Senate' : 'House', ms = ctrlRow(id) || {};
       return {race_id: id, label: `${chamber} control`, office: 'Control', state: 'US', chamber, winner: ms.winner || '', called_ts: ms.settled_ts || null, volume: ms.volume || 0};
     }
-    return ok('races') ? RX().byId.get(id) || null : null;
+    const r = ok('races') ? RX().byId.get(id) || null : null;
+    if (r || !ok('markets_index')) return r;
+    const m = MIDX().get(id);
+    if (m && m.cat === 'midterms') return {race_id: id, label: m.label, office: 'Control', state: 'US', winner: m.party_winner || '', called_ts: m.called_ts, volume: m.volume};
+    return m ? {race_id: id, label: m.label, office: 'Market', cat: m.cat, state: 'US', winner: m.winner, called_ts: m.called_ts, volume: m.volume, night_usd: m.night_usd} : null;
   }
+  const MIDX = () => memo('midx', ['markets_index'], (rows) => new Map(rows.map((m) => [m.id, m])));
+  const evOf = (tk) => tk.slice(0, tk.lastIndexOf('-'));
   function raceFor(st, office) {
     const list = (RX().byState.get(st) || []).filter((r) => r.office === office);
     return list.find((r) => !r.special) || list[0] || null;
@@ -242,7 +248,7 @@
   // ------------------------------------------------------------------ state + redraw plumbing
   const CURSOR_DRAWS = ['map', 'feed', 'clock', 'scrub', 'scrub-clock', 'kpi-sen', 'kpi-house', 'kpi-called', 'kpi-bets', 'kpi-reddit', 'kpi-gas',
     'kpi-wti', 'kpi-chat', 'lanes', 'st-races', 'st-spark', 'st-bets', 'st-bets-spark', 'st-social', 'st-gas', 'st-gas-spark', 'st-rain', 'st-turnout',
-    'tape', 'tape-sub', 'mkt-vol', 'mkt-head', 'mkt-chart', 'mkt-table', 'kpi-kalshi', 'kpi-spx', 'moments', 'moment-detail'];
+    'tape', 'tape-sub', 'mkt-vol', 'mkt-head', 'mkt-chart', 'mkt-table', 'kpi-kalshi', 'kpi-spx', 'moments', 'moment-tabs', 'moment-detail'];
   const STATE_DRAWS = ['map', 'st-name', 'st-races', 'st-spark', 'st-bets', 'st-bets-spark', 'st-social', 'st-gas', 'st-gas-spark', 'st-rain', 'st-turnout'];
   const RACE_DRAWS = ['race-select', 'mkt-vol', 'mkt-q', 'mkt-head', 'mkt-chart', 'mkt-table', 'st-races', 'tape', 'tape-sub'];
   const redraw = (names) => names.forEach((n) => dash.draw(n));
@@ -264,7 +270,11 @@
   }
   function pickMoment(m) {
     WF.moment = m.id;
-    if (m.t < WF.range[0] || m.t > WF.range[1]) { WF.rangeKey = 'night'; WF.range = RANGES.night.slice(); syncUI(); }
+    WF.mperiod = null;
+    if (m.t < WF.range[0] || m.t > WF.range[1]) {
+      const k = ['night', 'week', 'campaign'].find((r) => m.t >= RANGES[r][0] && m.t <= RANGES[r][1]) || 'campaign';
+      WF.rangeKey = k; WF.range = RANGES[k].slice(); syncUI();
+    }
     if (m.race_id) WF.race = m.race_id;
     if (m.state && m.state !== 'US') WF.state = m.state;
     redraw(STATE_DRAWS); redraw(RACE_DRAWS);
@@ -653,12 +663,29 @@
     if (!ok('races')) return;
     if (!sel.options.length) {
       const add = (parent, r) => { const o = document.createElement('option'); o.value = r.race_id; o.textContent = `${r.label}${r.office === 'House' ? ' (House)' : ''}`; parent.append(o); };
-      const g0 = document.createElement('optgroup'); g0.label = 'Chamber control';
+      const g0 = document.createElement('optgroup'); g0.label = 'Chamber control'; g0.dataset.ctrl = '1';
       ['CONTROLS-2026', 'CONTROLH-2026'].forEach((id) => add(g0, raceInfo(id)));
       sel.append(g0);
       for (const office of ['Senate', 'Governor', 'House']) {
         const g = document.createElement('optgroup'); g.label = `${office} · by volume`;
         rowsOf('races').filter((r) => r.office === office).sort((a, b) => b.volume - a.volume).forEach((r) => add(g, r));
+        sel.append(g);
+      }
+    }
+    if (ok('markets_index') && !sel.querySelector('optgroup[data-other]')) {
+      const g0 = sel.querySelector('optgroup[data-ctrl]');
+      for (const m of rowsOf('markets_index').filter((x) => x.cat === 'midterms')) {
+        const o = document.createElement('option'); o.value = m.id; o.textContent = m.label; if (g0) g0.append(o);
+      }
+      for (const [cat, , , long] of CATS.filter(([c]) => c !== 'midterms')) {
+        const list = rowsOf('markets_index').filter((m) => m.cat === cat);
+        if (!list.length) continue;
+        const g = document.createElement('optgroup'); g.label = `Kalshi · ${long} · most traded`; g.dataset.other = cat;
+        list.sort((a, b) => b.night_usd - a.night_usd || b.volume - a.volume).forEach((m) => {
+          const o = document.createElement('option'); o.value = m.id;
+          o.textContent = `${m.label.length > 60 ? m.label.slice(0, 59) + '…' : m.label}${m.sub && !m.label.includes(m.sub) ? ` (${m.sub})` : ''}`;
+          g.append(o);
+        });
         sel.append(g);
       }
     }
@@ -680,9 +707,11 @@
     for (const [t, i, p, n] of raw.px || []) if (ser[i]) ser[i].push({t, p, n, r: t >= N0 && t < N1 ? 60 : 600});
     return {outs, ser, raw, all: ser.flat().sort((a, b) => a.t - b.t)};
   });
+  const outSettle = (o, r) => (o.result === 'yes' || o.result === 'no') && o.settled_ts ? {t: o.settled_ts, p: o.result === 'yes' ? 1 : 0}
+    : r && r.office !== 'Market' && r.winner && r.called_ts ? {t: r.called_ts, p: o.party === r.winner ? 1 : 0} : null;
   function chanceAt(mk, i, t, r) {
-    const o = mk.outs[i];
-    if (r && r.winner && r.called_ts && t >= r.called_ts) return {p: o.party === r.winner ? 1 : 0, settled: true};
+    const o = mk.outs[i], st = outSettle(o, r);
+    if (st && t >= st.t) return {p: st.p, settled: true};
     const row = lastAt(mk.ser[i], t);
     return row ? {p: row.p, settled: false} : null;
   }
@@ -696,6 +725,13 @@
     const r = raceInfo(WF.race);
     if (!r) { el.textContent = ''; return; }
     const parts = [];
+    if (r.office === 'Market') {
+      if (r.night_usd) parts.push(`${usd(r.night_usd)} bet on election night`);
+      if (r.volume) parts.push(`${fmtN(r.volume)} contracts all-time`);
+      if (r.called_ts && WF.t >= r.called_ts) parts.push(`Settled${r.winner ? `: ${r.winner}` : ''}, ${when(r.called_ts)}`);
+      else parts.push('Open at the cursor');
+      el.textContent = parts.join(' · '); return;
+    }
     if (r.volume) parts.push(`${usd(r.volume)} vol`);
     if (r.winner && r.called_ts && WF.t >= r.called_ts) parts.push(`Settled: ${party(r.winner)}, ${when(r.called_ts)}`);
     else parts.push('Open at the cursor');
@@ -760,8 +796,10 @@
       const settledAt = r && r.winner && r.called_ts ? r.called_ts : null;
       const lines = mk.outs.map((o, i) => {
         const ser = mk.ser[i], prev = lastAt(ser, a);
-        const pts = (prev ? [{t: a, p: prev.p}] : []).concat(ser.filter((d) => d.t > a && d.t <= b && (!settledAt || d.t < settledAt)));
-        if (settledAt && settledAt > a && settledAt <= b) pts.push({t: settledAt, p: o.party === r.winner ? 1 : 0});
+        const st = outSettle(o, r);
+        const pts = (prev && (!st || prev.t < st.t) ? [{t: a, p: prev.p}] : []).concat(ser.filter((d) => d.t > a && d.t <= b && (!st || d.t < st.t)));
+        if (st && st.t > a && st.t <= b) pts.push({t: st.t, p: st.p});
+        else if (st && st.t <= a) pts.push({t: a, p: st.p});
         if (pts.length && pts[pts.length - 1].t < b) pts.push({t: b, p: pts[pts.length - 1].p});
         return {o, i, pts};
       });
@@ -848,7 +886,7 @@
     const r = raceInfo(WF.race);
     el.textContent = WF.tape === 'market' ? `Every bet in ${r ? r.label : 'this market'} up to the cursor, newest first. One bet = one order; amber = $10K or more.`
       : WF.tape === 'mid' ? 'The largest midterm bets (priced 3–97¢) up to the cursor, newest first.'
-        : 'The largest bets anywhere on Kalshi (priced 3–97¢) up to the cursor. Covers Nov 3 5 PM – Nov 4 9 AM ET.';
+        : 'The largest bets anywhere on Kalshi (priced 3–97¢) up to the cursor. Covers Nov 3 5 PM – Nov 4 11 AM ET.';
   });
   function tapeMarket(ol) {
     const s = mktState();
@@ -895,7 +933,8 @@
     if (!out.length) { emptyList(ol, t < N0 ? 'Whole-exchange bets start Nov 3 at 5 PM ET. Move the cursor there.' : 'No large bets yet at the cursor time.'); return; }
     feedList(ol, out.map((b) => ({...b, key: `${b.ticker}|${b.t}|${b.usd}`})), (li, d) => {
       const c = CAT[d.g] || CAT.other;
-      li.attr('class', `wf-feed-i${d.t > t - 600 ? ' is-new' : ''}`).attr('tabindex', d.race_id ? 0 : null);
+      const open = d.race_id || (ok('markets_index') && MIDX().has(evOf(d.ticker)) ? evOf(d.ticker) : null);
+      li.attr('class', `wf-feed-i${d.t > t - 600 ? ' is-new' : ''}${open ? ' is-link' : ''}`).attr('tabindex', open ? 0 : null).attr('title', open ? 'Open this market' : null);
       li.select('.wf-feed-t').text(F.time.format(D(d.t)));
       li.select('.wf-chip').attr('class', 'wf-chip').style('background', c.col).text(c.label);
       const r = d.race_id ? raceInfo(d.race_id) : null, sfx = d.ticker.split('-').pop();
@@ -903,12 +942,17 @@
       li.select('.wf-feed-l').text(`${d.side} @ ${cents(d.price)} · ${what}`).attr('title', `${d.side} at ${cents(d.price)}: ${what} (${d.ticker})`);
       li.select('.wf-feed-k').attr('class', 'wf-feed-k wf-feed-usd').text(usd(d.usd));
     });
-    activate(d3.select(ol).selectAll('li.wf-feed-i'), (d) => { if (d.race_id) pickRace(d.race_id); });
+    activate(d3.select(ol).selectAll('li.wf-feed-i'), (d) => {
+      const id = d.race_id || (ok('markets_index') && MIDX().has(evOf(d.ticker)) ? evOf(d.ticker) : null);
+      if (id) { WF.tape = 'market'; syncUI(); pickRace(id); }
+    });
   }
   dash.draw('tape', (ol) => (WF.tape === 'market' ? tapeMarket(ol) : WF.tape === 'all' ? tapeAll(ol) : tapeMid(ol)));
 
   // ------------------------------------------------------------------ key moments
-  const KIND = {control: 'Control', call: 'Call', swing: 'Swing', bet: 'Big bet'};
+  const KIND = {control: 'Control', call: 'Call', swing: 'Swing', bet: 'Big bet', social: 'Reddit surge', stocks: 'Stocks'};
+  const periodOf = (t) => (t < N0 ? 'before' : t < N1 ? 'night' : 'after');
+  const momPeriod = () => { if (WF.mperiod) return WF.mperiod; const c = currentMoment(); return periodOf(c ? c.t : WF.t); };
   function currentMoment() {
     const ms = MOMENTS();
     if (WF.moment) return ms.find((m) => m.id === WF.moment) || null;
@@ -916,17 +960,27 @@
   }
   dash.draw('moments', (ol) => {
     if (!ok('moments')) { emptyList(ol, stat('moments') === 'error' ? 'Key moments are not available.' : 'Loading…'); return; }
-    const cur = currentMoment();
-    feedList(ol, MOMENTS().map((m) => ({...m, key: m.id})), (li, d) => {
+    const cur = currentMoment(), per = momPeriod();
+    feedList(ol, MOMENTS().filter((m) => (m.period || periodOf(m.t)) === per).map((m) => ({...m, key: m.id})), (li, d) => {
       li.attr('class', `wf-feed-i wf-mom-i${cur && cur.id === d.id ? ' is-sel' : ''}${d.t > WF.t ? ' wf-dim' : ''}`).attr('tabindex', 0)
         .attr('aria-current', cur && cur.id === d.id ? 'true' : null);
-      li.select('.wf-feed-t').text(F.time.format(D(d.t)));
+      li.select('.wf-feed-t').text(per === 'night' ? F.time.format(D(d.t)) : F.md.format(D(d.t))).attr('title', when(d.t));
       li.select('.wf-chip').attr('class', 'wf-chip wf-chip-k').text(KIND[d.kind] || d.kind);
       li.select('.wf-feed-l').text(d.title).attr('title', d.title);
       li.select('.wf-feed-k').remove();
     });
     activate(d3.select(ol).selectAll('li.wf-feed-i'), (d) => { if (WF.playing) stop(); pickMoment(d); });
   });
+  dash.draw('moment-tabs', (el) => {
+    const per = ok('moments') ? momPeriod() : 'night';
+    const n = (k) => (ok('moments') ? MOMENTS().filter((m) => (m.period || periodOf(m.t)) === k).length : 0);
+    el.querySelectorAll('[data-mperiod]').forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.mperiod === per));
+      if (!b.dataset.label) b.dataset.label = b.textContent;
+      b.textContent = ok('moments') ? `${b.dataset.label} · ${n(b.dataset.mperiod)}` : b.dataset.label;
+    });
+  });
+  document.querySelectorAll('.wf [data-mperiod]').forEach((b) => b.addEventListener('click', () => { WF.mperiod = b.dataset.mperiod; redraw(['moments', 'moment-tabs']); }));
   function loadScript(src, id) {
     const old = document.getElementById(id);
     if (old) old.remove();
@@ -945,6 +999,11 @@
         bq.setAttribute('data-bluesky-uri', p.uri);
         bq.setAttribute('data-bluesky-embed-color-mode', 'dark');
         a.textContent = `View this post on Bluesky (${when(p.t)}, ${fmtInt(p.likes)} likes)`;
+      } else if (p.platform === 'x') {
+        bq.className = 'twitter-tweet';
+        bq.setAttribute('data-theme', 'dark');
+        bq.setAttribute('data-dnt', 'true');
+        a.textContent = `View this post on X (${when(p.t)}), shared in r/${p.sub}`;
       } else {
         bq.className = 'reddit-embed-bq';
         bq.setAttribute('data-embed-theme', 'dark');
@@ -958,6 +1017,10 @@
       else loadScript('https://embed.bsky.app/static/embed.js', 'wf-bsky-embed');
     }
     if (posts.some((p) => p.platform === 'reddit')) loadScript('https://embed.reddit.com/widgets.js', 'wf-reddit-embed');
+    if (posts.some((p) => p.platform === 'x')) {
+      if (window.twttr && window.twttr.widgets && typeof window.twttr.widgets.load === 'function') window.twttr.widgets.load(box);
+      else loadScript('https://platform.twitter.com/widgets.js', 'wf-x-embed');
+    }
   }
   dash.draw('moment-detail', {
     mount(el) {
@@ -970,7 +1033,7 @@
       actions.append(show, hide, open);
       const embeds = document.createElement('div'); embeds.className = 'wf-embeds';
       const note = document.createElement('p'); note.className = 'wf-embed-note';
-      note.textContent = 'Posts load from Bluesky and Reddit when you choose to show them, and those sites may set cookies. Bluesky posts are from accounts with 25,000+ followers.';
+      note.textContent = 'Posts load from Bluesky, Reddit and X when you choose to show them, and those sites may set cookies. Bluesky posts are from accounts with 25,000+ followers; Reddit posts have 50+ points; X posts are ones shared in those Reddit posts.';
       el.append(title, meta, actions, embeds, note);
       const m = {title, meta, show, hide, open, embeds, note, shownId: null};
       show.addEventListener('click', () => { WF.embedsOn = true; m.shownId = null; dash.draw('moment-detail'); });
@@ -985,9 +1048,10 @@
         m.meta.textContent = ''; m.show.hidden = m.hide.hidden = m.open.hidden = true; clear(m.embeds); m.shownId = null; return;
       }
       m.title.textContent = c.title;
-      const n = c.posts.length, nb = c.posts.filter((p) => p.platform === 'bluesky').length;
+      const n = c.posts.length, win = c.win || [c.t - 600, c.t + 1800];
+      const by = [['bluesky', 'Bluesky'], ['reddit', 'Reddit'], ['x', 'X']].map(([k, l]) => [c.posts.filter((p) => p.platform === k).length, l]).filter(([k]) => k);
       m.meta.textContent = `${F.day.format(D(c.t))}, ${F.time.format(D(c.t))} ET · ${KIND[c.kind] || c.kind}${WF.moment ? '' : ' · latest moment before the cursor'}`
-        + ` · ${n ? `${nb} Bluesky and ${n - nb} Reddit posts from 10 minutes before to 30 minutes after` : 'no matching public posts found'}`;
+        + ` · ${n ? `${by.map(([k, l]) => `${k} ${l}`).join(', ')} post${n === 1 ? '' : 's'} from ${when(win[0])} to ${when(win[1])}` : 'no matching public posts found'}`;
       m.open.hidden = !c.race_id;
       m.show.hidden = !n || WF.embedsOn;
       m.show.textContent = `Show ${n} post${n === 1 ? '' : 's'}`;
@@ -1072,8 +1136,8 @@
         .on('click', (ev, d) => { ev.stopPropagation(); if (WF.playing) stop(); pickMoment(d); })
         .on('keydown', (ev, d) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); pickMoment(d); } }))
         .attr('d', (d) => `M${m.x(d.t)},2 l5,5 l-5,5 l-5,-5 z`).classed('is-sel', (d) => cur && cur.id === d.id)
-        .attr('aria-label', (d) => `${F.time.format(D(d.t))}: ${d.title}`);
-      const x = m.x(WF.t), label = F.time.format(D(WF.t));
+        .attr('aria-label', (d) => `${when(d.t)}: ${d.title}`);
+      const x = m.x(WF.t), label = WF.range[1] - WF.range[0] > 2 * 86400 ? when(WF.t) : F.time.format(D(WF.t));
       m.cursor.select('line').attr('x1', x).attr('x2', x).attr('y1', TOP).attr('y2', TOP + PLOT_H);
       const tw = label.length * 6.6 + 10, tx = Math.min(Math.max(0, x - tw / 2), W - tw);
       m.cursor.select('rect').attr('x', tx).attr('width', tw);
