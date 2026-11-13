@@ -142,8 +142,8 @@ html, body { margin: 0; background: #0a0f15; }
 .wf-lanes { display: grid; grid-template-columns: 150px minmax(0, 1fr); }
 @container (max-width: 560px) { .wf-lanes { grid-template-columns: 92px minmax(0, 1fr); } .wf-lane-labels li { font-size: 9.5px; } }
 .wf-lane-labels { list-style: none; padding: 14px 8px 22px 0; }
-.wf-lane-labels li { height: 34px; display: flex; align-items: center; border-top: 1px solid var(--wf-grid); font: 500 10.5px/1.15 var(--wf-mono); color: var(--wf-muted); letter-spacing: .04em; text-transform: uppercase; }
-.wf-lane-plot { position: relative; min-height: 444px; min-width: 0; }
+.wf-lane-labels li { height: 34px; overflow: hidden; display: flex; align-items: center; border-top: 1px solid var(--wf-grid); font: 500 10.5px/1.15 var(--wf-mono); color: var(--wf-muted); letter-spacing: .04em; text-transform: uppercase; }
+.wf-lane-plot { position: relative; min-height: 300px; min-width: 0; }
 .wf-lanes-svg { display: block; width: 100%; touch-action: none; cursor: crosshair; }
 .wf-lane-sep { stroke: var(--wf-grid); }
 .wf-axis line { stroke: var(--wf-line2); }
@@ -212,3 +212,7 @@ html, body { margin: 0; background: #0a0f15; }
 .wf-trade-i.is-big .wf-feed-usd { color: var(--wf-amber); }
 .wf-side-yes { background: var(--wf-ok); } .wf-side-no { background: var(--wf-rep); }
 .wf-trade-sub { display: block; font: 500 11px/1.3 var(--wf-mono); color: var(--wf-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.wf-lane-labels li.is-cat { font-size: 10px; letter-spacing: .02em; }
+.wf-lane-labels li i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; flex: none; }
+.wf-cat-note { margin-top: 6px; }

@@ -14,7 +14,7 @@
     <div class="wf-title-row">
       <span class="wf-sigil" aria-hidden="true"></span>
       <h1 class="wf-title">Midterm Watchfloor</h1>
-      <span class="wf-tag">2026 U.S. midterms · Oct 20 – Nov 12 · times ET</span>
+      <span class="wf-tag">2026 U.S. midterms · Oct 4 – Nov 12 · times ET</span>
     </div>
     <p class="wf-takeaway">Kalshi settled Senate control for <b data-draw="tk-sen-winner">—</b> at <b data-draw="tk-sen-time">—</b> and House control for <b data-draw="tk-house-winner">—</b> at <b data-draw="tk-house-time">—</b>. <span data-draw="tk-bigbet"></span> Drag the timeline to replay where races were settled, where the money moved and when people were posting.</p>
   </header>
@@ -30,6 +30,7 @@
     <div class="wf-kpi"><span class="wf-kpi-l">Stream chat · msgs/min</span><span class="wf-kpi-v" data-draw="kpi-chat">—</span></div>
     <div class="wf-kpi"><span class="wf-kpi-l">US gas · AAA</span><span class="wf-kpi-v" data-draw="kpi-gas">—</span></div>
     <div class="wf-kpi"><span class="wf-kpi-l">WTI crude</span><span class="wf-kpi-v" data-draw="kpi-wti">—</span></div>
+    <div class="wf-kpi"><span class="wf-kpi-l">S&amp;P 500 · last close</span><span class="wf-kpi-v" data-draw="kpi-spx">—</span></div>
   </div>
 
   <div class="wf-main">
@@ -68,32 +69,15 @@
         <div class="wf-seg" role="group" aria-label="Time window">
           <button type="button" class="wf-btn" data-range="night" aria-pressed="true">Election night</button>
           <button type="button" class="wf-btn" data-range="week" aria-pressed="false">Nov 1 – 8</button>
-          <button type="button" class="wf-btn" data-range="campaign" aria-pressed="false">Oct 20 – Nov 12</button>
+          <button type="button" class="wf-btn" data-range="campaign" aria-pressed="false">Oct 4 – Nov 12</button>
         </div>
         <span class="wf-hint">Drag across the lanes, or focus them and use ← → (Shift for bigger steps). Amber diamonds are key moments.</span>
       </div>
       <div class="wf-lanes">
-        <ul class="wf-lane-labels" aria-hidden="true">
-          <li>Chamber control P(D)</li>
-          <li>Races settled</li>
-          <li style="height:68px">All of Kalshi · contracts/min by category</li>
-          <li>Midterm bets $/min · D ▲ R ▼</li>
-          <li>Big midterm bets</li>
-          <li>Streams on air</li>
-          <li>Live-chat msgs/min</li>
-          <li>Reddit comments/min</li>
-          <li>Bluesky top posts</li>
-          <li>Polymarket comments</li>
-          <li>US gas · WTI</li>
-        </ul>
+        <ul class="wf-lane-labels" aria-hidden="true" data-draw="lane-labels"></ul>
         <div class="wf-lane-plot" data-draw="lanes"></div>
       </div>
-      <div class="wf-cat-legend" aria-label="Kalshi categories">
-        <span><i style="background:#f0b44c"></i>Midterm races</span><span><i style="background:#b48cff"></i>Other elections &amp; politics</span>
-        <span><i style="background:#46d39a"></i>Sports</span><span><i style="background:#ff9f43"></i>Crypto</span><span><i style="background:#ff6bcb"></i>Parlays</span>
-        <span><i style="background:#5fb3ff"></i>Finance &amp; economics</span><span><i style="background:#36c5d6"></i>Weather</span><span><i style="background:#6b7a8f"></i>Everything else</span>
-        <span class="wf-hint">· exact per minute on election night; other hours estimated from short-lived markets</span>
-      </div>
+      <p class="wf-hint wf-cat-note">Kalshi lanes: contracts per minute in each category, each on its own scale; exact on election night (every trade), estimated from short-lived markets at other hours.</p>
     </section>
     </div>
 
@@ -196,8 +180,9 @@
       <li>Gas is AAA's daily regular-gas average as reported by Kalshi's settled AAA markets. Rain is the simple average of NOAA GHCN-Daily stations in each state, not weighted by population.</li>
       <li>Turnout markets: at 6 PM ET each day, the vote total Kalshi's ladder puts at 50/50. They are thin (median spread about 10¢), and the comparison is the most recent midterm Senate race in the state, so read direction, not level.</li>
       <li>Streams: eight election-night streams, four left- and four right-leaning. Chat counts come from the four YouTube streams that have a chat replay. Polymarket counts cover comments on its Senate control, House control and balance-of-power events.</li>
-      <li>All of Kalshi: every trade on the exchange from Nov 3 5 PM to Nov 4 9 AM ET, by category from Kalshi's series catalog ("Parlays" are Kalshi's combo markets). Other hours are an estimate: markets that opened and closed within a week (games, crypto, daily weather and economics) with their settled volume spread evenly over their open hours, plus the midterm trades; longer-running markets are left out there. Volume is in contracts, which is what Kalshi shows as dollar volume.</li>
+      <li>All of Kalshi: every trade on the exchange from Nov 3 5 PM to Nov 4 9 AM ET, by category from Kalshi's series catalog ("Parlays" are Kalshi's combo markets; "Stocks" are its S&amp;P 500, Nasdaq and other index markets). Other hours are an estimate: markets that opened and closed within a week (games, crypto, daily weather and economics) with their settled volume spread evenly over their open hours, plus the midterm trades; longer-running markets are left out there. Volume is in contracts, which is what Kalshi shows as dollar volume.</li>
       <li>The market card follows Kalshi's layout: each outcome's chance is its last traded YES price; Yes and No show the last trade's prices, not the order book. "This market" lists every bet in the chosen market up to the cursor.</li>
+      <li>Stocks: daily closes of the S&amp;P 500, Nasdaq Composite and VIX from FRED. U.S. markets are closed overnight, so election night shows up in the Nov 4 close.</li>
       <li>Not here yet: polls, official vote counts, AP call times, X.</li>
     </ul>
   </details>

@@ -7,7 +7,7 @@ A replay console for the 2026 U.S. midterms: what was happening, when and where.
 Open `index.html` through any static web server (this repository is served with GitHub Pages). There's no build step: plain HTML, CSS and JavaScript with a vendored copy of d3 v7.9.0.
 
 ## What you can do
-- **Timeline.** Drag the cursor across the time lanes, press Play, or switch between election night, Nov 1–8 and Oct 20 – Nov 12. Amber diamonds mark key moments.
+- **Timeline.** Drag the cursor across the time lanes, press Play, or switch between election night, Nov 1–8 and Oct 4 – Nov 12. Amber diamonds mark key moments.
 - **Map layers.**
   - Races: Kalshi odds, then the settled result.
   - Bets: dollars bet on each state's races per hour.
@@ -25,8 +25,9 @@ Each JSON file is `{rows: [...], meta: {inputs}}`. Times are UTC Unix seconds; t
 | file | what |
 |---|---|
 | `races`, `race_odds`, `milestones`, `control` | Kalshi 2026 Senate, Governor and House race markets: winner, settlement time, hourly odds; chamber-control odds (per minute on election night) |
-| `bets_flow`, `bets_state`, `big_bets`, `race/<id>` | Kalshi trades, Oct 20 – Nov 12, grouped into bets (one taker order = all its fills at one instant), by which party the bet backs; each race file also has every outcome's last traded price per minute (election night) or per 10 minutes |
+| `bets_flow`, `bets_state`, `big_bets`, `race/<id>` | Kalshi trades, Oct 4 – Nov 12, grouped into bets (one taker order = all its fills at one instant), by which party the bet backs; each race file also has every outcome's last traded price per minute (election night) or per 10 minutes |
 | `trades/<race>/<day>` | Every bet in that race's markets on that Eastern-time day: `[time, outcome, Yes=1/No=0, price paid, contracts, $ paid]` |
+| `stocks` | Daily closes of the S&P 500, Nasdaq Composite, Dow and VIX (FRED) |
 | `kalshi_cats`, `kalshi_big` | The whole Kalshi exchange: contracts traded by category per minute on election night (every trade) and per hour otherwise (estimated from short-lived markets), and the largest bets anywhere on Kalshi on election night |
 | `reddit_hourly`, `reddit_night` | Post and comment counts per hour (per minute on election night) for national political subreddits and one main subreddit per state, from the Arctic Shift Reddit archive |
 | `bluesky` | Election-night Bluesky sample: top posts per candidate / state query, counts per 10 minutes and state |
