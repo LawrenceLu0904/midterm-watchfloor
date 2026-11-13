@@ -21,7 +21,7 @@ Open `index.html` through any static web server (this repository is served with 
   - Each moment can show the public posts made around it, through Bluesky's, Reddit's and X's own embeds.
 - **Market card.** Laid out the way Kalshi shows a market: each outcome's chance over time, Yes/No prices, volume and settlement. Besides every midterm race, it opens the most-traded Kalshi events in each category: sports games (election night was Tuesday-night college football, tennis, cricket and the Champions League), crypto, stock indexes, other elections such as the Los Angeles mayor's race, finance, weather and more.
 - **Trades.** Every bet in the chosen market up to the cursor, the largest midterm bets, or the largest bets anywhere on Kalshi.
-- **All of Kalshi.** A timeline lane with the whole exchange's volume by category (sports, crypto, parlays, finance, weather, politics), so the midterms can be seen in context.
+- **All of Kalshi.** One timeline lane per category (other politics, sports, crypto, parlays, stock indexes, finance, weather, other), so the midterms can be seen in context. A stocks lane adds S&P 500, Nasdaq and VIX daily closes.
 
 ## Data (`data/`)
 Each JSON file is `{rows: [...], meta: {inputs}}`. Times are UTC Unix seconds; the page shows US Eastern time.
@@ -33,11 +33,12 @@ Each JSON file is `{rows: [...], meta: {inputs}}`. Times are UTC Unix seconds; t
 | `trades/<race>/<day>` | Every bet in that race's markets on that Eastern-time day: `[time, outcome, Yes=1/No=0, price paid, contracts, $ paid]` |
 | `stocks` | Daily closes of the S&P 500, Nasdaq Composite, Dow and VIX (FRED) |
 | `markets_index`, `race/<event>`, `trades/<event>/<day>` | The most-traded non-midterm Kalshi events per category: hourly prices from Kalshi candlesticks, plus per-minute prices and every bet on election night |
-| `kalshi_cats`, `kalshi_big` | The whole Kalshi exchange: contracts traded by category per minute on election night (every trade) and per hour otherwise (estimated from short-lived markets), and the largest bets anywhere on Kalshi on election night |
-| `reddit_hourly`, `reddit_night` | Post and comment counts per hour (per minute on election night) for national political subreddits and one main subreddit per state, from the Arctic Shift Reddit archive |
+| `kalshi_cats`, `kalshi_big` | The whole Kalshi exchange: contracts traded by category per minute on election night, Nov 3 5 PM – Nov 4 11 AM ET (every trade) and per hour otherwise (estimated from short-lived markets), and the largest bets anywhere on Kalshi on election night |
+| `reddit_hourly`, `reddit_night` | Post and comment counts per hour, Oct 4 – Nov 12 (per minute on election night) for national political subreddits and one main subreddit per state, from the Arctic Shift Reddit archive |
 | `bluesky` | Election-night Bluesky sample: top posts per candidate / state query, counts per 10 minutes and state |
-| `moments` | Key moments, with links to public posts to embed |
+| `moments` | Key moments before election day, on election night and after, each with links to public Bluesky, Reddit and X posts to embed |
 | `streams`, `chat`, `polymarket` | Election-night political streams (on-air times), live-chat messages per minute, Polymarket comments per hour |
+| `states_geo` | State outlines (us-atlas, Census cartographic boundaries) |
 | `gas`, `oil`, `weather_state`, `weather_grid`, `turnout_races`, `turnout_daily` | AAA gas and WTI/Brent via Kalshi's settled markets; NOAA GHCN-Daily station weather; Kalshi turnout markets with the last midterm Senate total (MEDSL) |
 
 ## What is and isn't published
