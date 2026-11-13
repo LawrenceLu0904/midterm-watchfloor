@@ -1269,13 +1269,23 @@
       const vals = sets.flatMap((st) => st.pts.map((d) => d.pct)).concat([0]);
       const [lo, hi] = d3.extent(vals), pd = (hi - lo || 1) * 0.12, ys = yIn('stocks', lo - pd, hi + pd);
       g.append('line').attr('x1', x(a)).attr('x2', x(b)).attr('y1', ys(0)).attr('y2', ys(0)).style('stroke', C.muted).style('stroke-opacity', 0.5).style('stroke-dasharray', '2 3');
-      sets.forEach((st, j) => {
-        if (!st.pts.length) return;
-        g.append('path').datum(st.pts).attr('d', d3.line().x((d) => x(d.t)).y((d) => ys(d.pct))).style('fill', 'none').style('stroke', st.col).style('stroke-width', j ? 1 : 1.5).style('stroke-dasharray', j ? '3 2' : null);
-      });
+      if (sets[1].pts.length) g.append('path').datum(sets[1].pts).attr('d', d3.line().x((d) => x(d.t)).y((d) => ys(d.pct))).style('fill', 'none').style('stroke', sets[1].col).style('stroke-width', 1).style('stroke-dasharray', '3 2');
+      const bin = 1800, cs = [];                 // S&P: 30-minute candles (open/high/low/close of the implied level)
+      for (const d of sets[0].pts) {
+        const k = Math.floor((d.t - 1) / bin) * bin;
+        let c = cs[cs.length - 1];
+        if (!c || c.t !== k) { c = {t: k, o: c ? c.c : d.pct, h: d.pct, l: d.pct, c: d.pct}; cs.push(c); }
+        c.h = Math.max(c.h, d.pct, c.o); c.l = Math.min(c.l, d.pct, c.o); c.c = d.pct;
+      }
+      const cw = Math.max(2, (x(a + bin) - x(a)) * 0.62);
+      for (const c of cs) {
+        const col = c.c >= c.o ? '#46d39a' : '#ff4d5a', cx = x(c.t + bin / 2);
+        g.append('line').attr('x1', cx).attr('x2', cx).attr('y1', ys(c.h)).attr('y2', ys(c.l)).style('stroke', col).style('stroke-width', 1);
+        g.append('rect').attr('x', cx - cw / 2).attr('width', cw).attr('y', ys(Math.max(c.o, c.c))).attr('height', Math.max(1, Math.abs(ys(c.o) - ys(c.c)))).style('fill', col);
+      }
       const cur = lastAt(sets[0].pts, WF.t), act = ref.find((r) => r.idx === 'SPX' && r.target === '10 AM');
       const pc = (v) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}%`;
-      note('stocks', `Kalshi-implied S&P at 10 AM Nov 4: ${cur ? pc(cur.pct) : '—'}${act && act.actual_pct != null ? ` · actual ${pc(act.actual_pct)}` : ''}`, C.senate);
+      note('stocks', `Kalshi-implied S&P (30-min candles) at 10 AM Nov 4: ${cur ? pc(cur.pct) : '—'}${act && act.actual_pct != null ? ` · actual ${pc(act.actual_pct)}` : ''}`, C.senate);
     }
     if (!kix && !missing('stocks', 'stocks')) {
       [['SP500', 'S&P 500', C.senate, null], ['NASDAQCOM', 'Nasdaq', '#7dd3fc', null], ['VIXCLS', 'VIX', '#8a9bb0', '2 2']].forEach(([sid, name, col, dsh], j) => {
