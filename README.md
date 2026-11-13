@@ -19,6 +19,7 @@ Open `index.html` through any static web server (this repository is served with 
   - **Election night:** the chamber-control settlements, the biggest race calls, 15-minute swings and the largest bets.
   - **After:** races Kalshi settled later.
   - Each moment can show the public posts made around it, through Bluesky's, Reddit's and X's own embeds.
+- **Polls.** Each race's market card lists its public polls up to the cursor, with the average margin of the latest five, next to the market's odds.
 - **Market card.** Laid out the way Kalshi shows a market: each outcome's chance over time, Yes/No prices, volume and settlement. Besides every midterm race, it opens the most-traded Kalshi events in each category: sports games (election night was Tuesday-night college football, tennis, cricket and the Champions League), crypto, stock indexes, other elections such as the Los Angeles mayor's race, finance, weather and more.
 - **Trades.** Every bet in the chosen market up to the cursor, the largest midterm bets, or the largest bets anywhere on Kalshi.
 - **All of Kalshi.** One timeline lane per category (other politics, sports, crypto, parlays, stock indexes, finance, weather, other), so the midterms can be seen in context. A stocks lane adds S&P 500, Nasdaq and VIX daily closes.
@@ -31,6 +32,7 @@ Each JSON file is `{rows: [...], meta: {inputs}}`. Times are UTC Unix seconds; t
 | `races`, `race_odds`, `milestones`, `control` | Kalshi 2026 Senate, Governor and House race markets: winner, settlement time, hourly odds; chamber-control odds (per minute on election night) |
 | `bets_flow`, `bets_state`, `big_bets`, `race/<id>` | Kalshi trades, Oct 4 – Nov 12, grouped into bets (one taker order = all its fills at one instant), by which party the bet backs (midterm markets include chamber control and the House + Senate balance-of-power market); each race file also has every outcome's last traded price per minute (election night) or per 10 minutes |
 | `trades/<race>/<day>` | Every bet in that race's markets on that Eastern-time day: `[time, outcome, Yes=1/No=0, price paid, contracts, $ paid]` |
+| `polls` | General-election polls since Aug 1 for 143 races (1,134 polls, one version per pollster and date), from Wikipedia (CC BY-SA 4.0) and VoteHub (CC BY 4.0), matched to Kalshi races |
 | `stocks` | Daily closes of the S&P 500, Nasdaq Composite, Dow and VIX (FRED) |
 | `kalshi_index` | Election night, every 5 minutes: the Kalshi-implied S&P 500 and Nasdaq-100 at 10 AM, 11 AM and 4 PM on Nov 4, from every trade in Kalshi's "at or above K" ladders. Each point is the strike where the chance crosses 50%, as a % change from the Nov 3 close. Also the chance the S&P closed Nov 4 higher, and the values Kalshi settled at. |
 | `markets_index`, `race/<event>`, `trades/<event>/<day>` | The most-traded non-midterm Kalshi events per category: hourly prices from Kalshi candlesticks, plus per-minute prices and every bet on election night |
@@ -55,9 +57,9 @@ Each JSON file is `{rows: [...], meta: {inputs}}`. Times are UTC Unix seconds; t
   - Bluesky embeds are limited to accounts with 25,000+ followers. Reddit embeds are limited to posts with 50+ points.
   - X posts are ones linked from those Reddit posts, checked with X's public embed endpoint. We don't use X's paid API or scrape X, so there are no X post counts.
 
-Polls, official vote counts and AP call times are not included yet.
+Official vote counts and AP call times are not included yet.
 
 ## Sources
-Kalshi Trade API · AAA (via Kalshi settlement values) · NOAA NCEI GHCN-Daily · MIT Election Data and Science Lab · Arctic Shift (Reddit archive) · Bluesky public API · X embeds (publish.x.com) · FRED (stock indexes) · Polymarket Gamma API · YouTube live-chat replays (counts only) · us-atlas (Census cartographic boundaries) · d3 (ISC license).
+Kalshi Trade API · AAA (via Kalshi settlement values) · NOAA NCEI GHCN-Daily · MIT Election Data and Science Lab · Wikipedia and VoteHub (polls) · Arctic Shift (Reddit archive) · Bluesky public API · X embeds (publish.x.com) · FRED (stock indexes) · Polymarket Gamma API · YouTube live-chat replays (counts only) · us-atlas (Census cartographic boundaries) · d3 (ISC license).
 
 This is an independent research project. It is not affiliated with or endorsed by Kalshi, Polymarket, Reddit, Bluesky or any other source.

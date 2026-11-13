@@ -21,7 +21,7 @@
     amber: '#f0b44c', house: '#86b6ff', senate: '#e9eef5', social: '#c77dff', bsky: '#5fb3ff'};
   const DATASETS = ['states_geo', 'races', 'race_odds', 'milestones', 'control', 'gas', 'oil', 'weather_state', 'weather_grid', 'turnout_races',
     'turnout_daily', 'streams', 'chat', 'polymarket', 'bets_flow', 'bets_state', 'big_bets', 'reddit_hourly', 'reddit_night', 'bluesky', 'moments',
-    'kalshi_cats', 'kalshi_big', 'stocks', 'markets_index', 'kalshi_index'];
+    'kalshi_cats', 'kalshi_big', 'stocks', 'markets_index', 'kalshi_index', 'polls'];
   const WF = window.WF = {t: U(2026, 11, 4, 3), range: RANGES.night.slice(), rangeKey: 'night', layer: 'races', office: 'Senate', state: null,
     race: 'CONTROLS-2026', moment: null, mperiod: null, embedsOn: false, tape: 'market', playing: false, timer: null};
 
@@ -248,9 +248,9 @@
   // ------------------------------------------------------------------ state + redraw plumbing
   const CURSOR_DRAWS = ['map', 'feed', 'clock', 'scrub', 'scrub-clock', 'kpi-sen', 'kpi-house', 'kpi-called', 'kpi-bets', 'kpi-reddit', 'kpi-gas',
     'kpi-wti', 'kpi-chat', 'lanes', 'st-races', 'st-spark', 'st-bets', 'st-bets-spark', 'st-social', 'st-gas', 'st-gas-spark', 'st-rain', 'st-turnout',
-    'tape', 'tape-sub', 'mkt-vol', 'mkt-head', 'mkt-chart', 'mkt-table', 'kpi-kalshi', 'kpi-spx', 'moments', 'moment-tabs', 'moment-detail'];
+    'tape', 'tape-sub', 'mkt-vol', 'mkt-head', 'mkt-chart', 'mkt-table', 'kpi-kalshi', 'kpi-spx', 'moments', 'moment-tabs', 'moment-detail', 'mkt-polls'];
   const STATE_DRAWS = ['map', 'st-name', 'st-races', 'st-spark', 'st-bets', 'st-bets-spark', 'st-social', 'st-gas', 'st-gas-spark', 'st-rain', 'st-turnout'];
-  const RACE_DRAWS = ['race-select', 'mkt-vol', 'mkt-q', 'mkt-head', 'mkt-chart', 'mkt-table', 'st-races', 'tape', 'tape-sub'];
+  const RACE_DRAWS = ['race-select', 'mkt-vol', 'mkt-q', 'mkt-head', 'mkt-chart', 'mkt-table', 'mkt-polls', 'st-races', 'tape', 'tape-sub'];
   const redraw = (names) => names.forEach((n) => dash.draw(n));
   function setT(t) {
     const [a, b] = WF.range;
@@ -850,6 +850,38 @@
     },
   });
 
+  const POLLS = () => memo('polls', ['polls'], (rows) => group(rows, (r) => r.race_id, 't'));
+  dash.draw('mkt-polls', (el) => {
+    clear(el);
+    const r = raceInfo(WF.race);
+    if (!r || r.office === 'Market' || r.office === 'Control' || !ok('polls')) return;
+    const all = POLLS().get(WF.race) || [], upto = all.filter((p) => p.t <= WF.t);
+    const mg = (v) => (Math.abs(v) < 0.05 ? 'Tied' : `${v > 0 ? 'D' : 'R'} +${Math.abs(v).toFixed(1)}`);
+    const span = (cls, text) => { const s = document.createElement('span'); if (cls) s.className = cls; s.textContent = text; return s; };
+    const h = document.createElement('p'); h.className = 'wf-mkt-polls-h';
+    if (!all.length) { h.textContent = 'Polls: no public general-election poll for this race since Aug 1.'; el.append(h); return; }
+    const last = upto.slice(-5), avg = last.length ? d3.mean(last, (p) => p.D - p.R) : null;
+    h.textContent = upto.length ? `Polls · average of the latest ${last.length} up to the cursor: ${mg(avg)}` : `Polls · ${all.length} in this race, none before the cursor`;
+    if (avg != null) h.classList.add(avg > 0 ? 'is-d' : avg < 0 ? 'is-r' : 'x');
+    el.append(h);
+    if (!upto.length) return;
+    const ul = document.createElement('ul'); ul.className = 'wf-mkt-polls-l';
+    const last2 = (n) => (n ? n.trim().split(/\s+/).pop() : '');
+    for (const p of upto.slice(-8).reverse()) {
+      const li = document.createElement('li'), m = p.D - p.R;
+      const who = span(null, p.pollster); if (p.partisan) who.append(Object.assign(document.createElement('small'), {textContent: ` (${p.partisan})`}));
+      const res = span(null, `${last2(p.D_name) || 'D'} ${p.D} – ${last2(p.R_name) || 'R'} ${p.R}`);
+      if (p.sample && p.sample !== 'nan') res.append(Object.assign(document.createElement('small'), {textContent: ` · ${p.sample}`}));
+      const mm = span(`wf-poll-m ${m > 0 ? 'is-d' : m < 0 ? 'is-r' : ''}`, mg(m));
+      li.append(span('wf-poll-d', F.md.format(D(p.t))), who, res, mm);
+      li.title = `${p.date}: ${p.pollster}${p.partisan ? ` (${p.partisan})` : ''}, ${p.D_name || 'D'} ${p.D}%, ${p.R_name || 'R'} ${p.R}% (${p.source})`;
+      ul.append(li);
+    }
+    el.append(ul);
+    const src = document.createElement('p'); src.className = 'wf-hint';
+    src.textContent = `${upto.length} poll${upto.length === 1 ? '' : 's'} since Aug 1 · Wikipedia (CC BY-SA 4.0) and VoteHub (CC BY 4.0) · (D)/(R) = pollster working for a party`;
+    el.append(src);
+  });
   dash.draw('mkt-table', (tb) => {
     clear(tb);
     const s = mktState();
