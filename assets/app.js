@@ -21,7 +21,7 @@
     amber: '#f0b44c', house: '#86b6ff', senate: '#e9eef5', social: '#c77dff', bsky: '#5fb3ff'};
   const DATASETS = ['states_geo', 'races', 'race_odds', 'milestones', 'control', 'gas', 'oil', 'weather_state', 'weather_grid', 'turnout_races',
     'turnout_daily', 'streams', 'chat', 'polymarket', 'bets_flow', 'bets_state', 'big_bets', 'reddit_hourly', 'reddit_night', 'bluesky', 'moments',
-    'kalshi_cats', 'kalshi_big', 'stocks', 'markets_index'];
+    'kalshi_cats', 'kalshi_big', 'stocks', 'markets_index', 'kalshi_index'];
   const WF = window.WF = {t: U(2026, 11, 4, 3), range: RANGES.night.slice(), rangeKey: 'night', layer: 'races', office: 'Senate', state: null,
     race: 'CONTROLS-2026', moment: null, mperiod: null, embedsOn: false, tape: 'market', playing: false, timer: null};
 
@@ -1067,7 +1067,7 @@
     ...CATS.map(([g, , col, long]) => [`cat:${g}`, 24, `Kalshi · ${long}`, col]),
     ['bets', 34, 'Midterm bets $/min · D ▲ R ▼'], ['big', 34, 'Big midterm bets'], ['streams', 34, 'Streams on air'], ['chat', 34, 'Live-chat msgs/min'],
     ['reddit', 34, 'Reddit comments/min'], ['bsky', 34, 'Bluesky top posts'], ['poly', 34, 'Polymarket comments'],
-    ['stocks', 34, 'Stocks · S&P 500 · Nasdaq · VIX'], ['gas', 34, 'US gas · WTI']];
+    ['stocks', 52, 'Stocks · S&P 500 · Nasdaq'], ['gas', 34, 'US gas · WTI']];
   const LY = {};
   let PLOT_H = 0;
   for (const [k, h] of LANES) { LY[k] = {y: TOP + PLOT_H, h}; PLOT_H += h; }
@@ -1229,7 +1229,23 @@
     if (!missing('reddit', 'reddit_hourly')) area('reddit', binSum(RED_US(), a, b, nb, (r) => r.c, 3600).map((v) => v / (bw / 60)), C.social, (mx) => `peak ${fmtInt(Math.round(mx))}/min · national subs`);
     if (!missing('bsky', 'bluesky')) area('bsky', binSum(BSKY().all, a, b, nb, (r) => r.posts, 600).map((v) => v / (bw / 600)), C.bsky, (mx) => `peak ${fmtInt(Math.round(mx))} per 10 min · sample`);
     if (!missing('poly', 'polymarket')) area('poly', binSum(rowsOf('polymarket'), a, b, nb, (r) => r.comments, 3600).map((v) => v / (bw / 3600)), '#c9a2ff', (mx) => `peak ${fmtInt(Math.round(mx))}/hour`);
-    if (!missing('stocks', 'stocks')) {
+    const kix = b - a <= 2 * 86400 && a < N1 && b > N0 && ok('kalshi_index');
+    if (kix) {                                   // election night: Kalshi-implied S&P 500 / Nasdaq-100 at 10 AM Nov 4, % vs Nov 3 close
+      const rows = rowsOf('kalshi_index'), ref = (dash.data('kalshi_index').raw || {}).ref || [];
+      const sets = [['SPX', 'S&P 500', C.senate], ['NDX', 'Nasdaq-100', '#7dd3fc']]
+        .map(([k, name, col]) => ({k, name, col, pts: rows.filter((r) => r.idx === k && r.target === '10 AM' && r.t >= a && r.t <= b)}));
+      const vals = sets.flatMap((st) => st.pts.map((d) => d.pct)).concat([0]);
+      const [lo, hi] = d3.extent(vals), pd = (hi - lo || 1) * 0.12, ys = yIn('stocks', lo - pd, hi + pd);
+      g.append('line').attr('x1', x(a)).attr('x2', x(b)).attr('y1', ys(0)).attr('y2', ys(0)).style('stroke', C.muted).style('stroke-opacity', 0.5).style('stroke-dasharray', '2 3');
+      sets.forEach((st, j) => {
+        if (!st.pts.length) return;
+        g.append('path').datum(st.pts).attr('d', d3.line().x((d) => x(d.t)).y((d) => ys(d.pct))).style('fill', 'none').style('stroke', st.col).style('stroke-width', j ? 1 : 1.5).style('stroke-dasharray', j ? '3 2' : null);
+      });
+      const cur = lastAt(sets[0].pts, WF.t), act = ref.find((r) => r.idx === 'SPX' && r.target === '10 AM');
+      const pc = (v) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}%`;
+      note('stocks', `Kalshi-implied S&P at 10 AM Nov 4: ${cur ? pc(cur.pct) : '—'}${act && act.actual_pct != null ? ` · actual ${pc(act.actual_pct)}` : ''}`, C.senate);
+    }
+    if (!kix && !missing('stocks', 'stocks')) {
       [['SP500', 'S&P 500', C.senate, null], ['NASDAQCOM', 'Nasdaq', '#7dd3fc', null], ['VIXCLS', 'VIX', '#8a9bb0', '2 2']].forEach(([sid, name, col, dsh], j) => {
         const s = STK().get(sid) || [], prev = lastAt(s, a);
         const pts = (prev ? [{...prev, t: a}] : []).concat(s.filter((d) => d.t > a && d.t <= b));
