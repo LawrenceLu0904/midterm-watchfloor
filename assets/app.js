@@ -20,9 +20,10 @@
   const C = {dem: '#3d8bff', rep: '#ff4d5a', ind: '#b48cff', mid: '#4a4f63', idle: '#25303d', none: '#121a24', fg: '#dbe4ee', muted: '#8a9bb0',
     amber: '#f0b44c', house: '#86b6ff', senate: '#e9eef5', social: '#c77dff', bsky: '#5fb3ff'};
   const DATASETS = ['states_geo', 'races', 'race_odds', 'milestones', 'control', 'gas', 'oil', 'weather_state', 'weather_grid', 'turnout_races',
-    'turnout_daily', 'streams', 'chat', 'polymarket', 'bets_flow', 'bets_state', 'big_bets', 'reddit_hourly', 'reddit_night', 'bluesky', 'moments'];
+    'turnout_daily', 'streams', 'chat', 'polymarket', 'bets_flow', 'bets_state', 'big_bets', 'reddit_hourly', 'reddit_night', 'bluesky', 'moments',
+    'kalshi_cats', 'kalshi_big'];
   const WF = window.WF = {t: U(2026, 11, 4, 3), range: RANGES.night.slice(), rangeKey: 'night', layer: 'races', office: 'Senate', state: null,
-    race: 'CONTROLS-2026', moment: null, embedsOn: false, playing: false, timer: null};
+    race: 'CONTROLS-2026', moment: null, embedsOn: false, tape: 'market', playing: false, timer: null};
 
   // ------------------------------------------------------------------ helpers
   const ok = (id) => dash.data(id).status === 'ok';
@@ -95,7 +96,8 @@
   const pct1 = (p) => `${(p * 100).toFixed(1)}%`;
   const fmtInt = d3.format(',');
   const fmtVotes = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : `${Math.round(n / 1e3)}K`);
-  const usd = (x) => (x >= 1e6 ? `$${(x / 1e6).toFixed(x >= 1e7 ? 0 : 1)}M` : x >= 1e3 ? `$${(x / 1e3).toFixed(x >= 1e4 ? 0 : 1)}K` : `$${Math.round(x)}`);
+  const fmtN = (x) => (x >= 1e6 ? `${(x / 1e6).toFixed(x >= 1e8 ? 0 : 1)}M` : x >= 1e3 ? `${(x / 1e3).toFixed(x >= 1e4 ? 0 : 1)}K` : x >= 10 || x === 0 ? `${Math.round(x)}` : x.toFixed(x < 1 ? 2 : 1));
+  const usd = (x) => (x >= 1e6 ? `$${(x / 1e6).toFixed(x >= 1e7 ? 0 : 1)}M` : x >= 1e3 ? `$${(x / 1e3).toFixed(x >= 1e4 ? 0 : 1)}K` : x >= 1 || x === 0 ? `$${Math.round(x)}` : `$${x.toFixed(2)}`);
   const signed = (x) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(0)}%`;
   const cents = (p) => `${Math.round(p * 100)}¢`;
   const party = (w) => ({D: 'Democrats', R: 'Republicans'}[w] || 'other');
@@ -144,7 +146,7 @@
   function raceInfo(id) {
     if (id === 'CONTROLS-2026' || id === 'CONTROLH-2026') {
       const chamber = id === 'CONTROLS-2026' ? 'Senate' : 'House', ms = ctrlRow(id) || {};
-      return {race_id: id, label: `${chamber} control`, office: 'Control', state: 'US', chamber, winner: ms.winner || '', called_ts: ms.settled_ts || null};
+      return {race_id: id, label: `${chamber} control`, office: 'Control', state: 'US', chamber, winner: ms.winner || '', called_ts: ms.settled_ts || null, volume: ms.volume || 0};
     }
     return ok('races') ? RX().byId.get(id) || null : null;
   }
@@ -238,9 +240,9 @@
   // ------------------------------------------------------------------ state + redraw plumbing
   const CURSOR_DRAWS = ['map', 'feed', 'clock', 'scrub', 'scrub-clock', 'kpi-sen', 'kpi-house', 'kpi-called', 'kpi-bets', 'kpi-reddit', 'kpi-gas',
     'kpi-wti', 'kpi-chat', 'lanes', 'st-races', 'st-spark', 'st-bets', 'st-bets-spark', 'st-social', 'st-gas', 'st-gas-spark', 'st-rain', 'st-turnout',
-    'tape', 'explorer', 'explorer-stats', 'moments', 'moment-detail'];
+    'tape', 'tape-sub', 'mkt-vol', 'mkt-head', 'mkt-chart', 'mkt-table', 'kpi-kalshi', 'moments', 'moment-detail'];
   const STATE_DRAWS = ['map', 'st-name', 'st-races', 'st-spark', 'st-bets', 'st-bets-spark', 'st-social', 'st-gas', 'st-gas-spark', 'st-rain', 'st-turnout'];
-  const RACE_DRAWS = ['race-select', 'explorer', 'explorer-stats', 'st-races', 'tape'];
+  const RACE_DRAWS = ['race-select', 'mkt-vol', 'mkt-q', 'mkt-head', 'mkt-chart', 'mkt-table', 'st-races', 'tape', 'tape-sub'];
   const redraw = (names) => names.forEach((n) => dash.draw(n));
   function setT(t) {
     const [a, b] = WF.range;
@@ -272,6 +274,7 @@
     document.querySelectorAll('.wf [data-layer]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.layer === WF.layer)));
     document.querySelectorAll('.wf [data-office]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.office === WF.office)));
     document.querySelectorAll('.wf [data-range]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.range === WF.rangeKey)));
+    document.querySelectorAll('.wf [data-tape]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tape === WF.tape)));
     const office = document.getElementById('wf-office');
     if (office) office.hidden = WF.layer !== 'races';
     const want = WF.layer === 'races' ? (WF.office === 'House' ? 'house' : 'races') : WF.layer;
@@ -301,6 +304,7 @@
     redraw(['st-spark']);
   }));
   document.querySelectorAll('.wf [data-play-btn]').forEach((b) => b.addEventListener('click', () => (WF.playing ? stop() : play())));
+  document.querySelectorAll('.wf [data-tape]').forEach((b) => b.addEventListener('click', () => { WF.tape = b.dataset.tape; syncUI(); redraw(['tape', 'tape-sub']); }));
   const scrub = document.getElementById('wf-scrub');
   scrub.addEventListener('input', () => { if (WF.playing) stop(); WF.moment = null; setT(+scrub.value); });
   document.getElementById('wf-race-select').addEventListener('change', (e) => pickRace(e.target.value));
@@ -351,6 +355,10 @@
     el.classList.toggle('is-d', tot > 0 && d > r);
     el.classList.toggle('is-r', tot > 0 && r >= d);
     el.title = tot ? `${Math.round((100 * d) / tot)}% backing D, ${Math.round((100 * r) / tot)}% backing R` : '';
+  });
+  dash.draw('kpi-kalshi', (el) => {
+    if (!ok('kalshi_cats')) { el.textContent = stat('kalshi_cats') === 'error' ? 'n/a' : '—'; return; }
+    el.textContent = fmtN(binSum(rowsOf('kalshi_cats'), WF.t - 3600, WF.t, 1, (r) => r.n, 3600)[0]);
   });
   dash.draw('kpi-reddit', (el) => {
     if (!ok('reddit_hourly')) { el.textContent = stat('reddit_hourly') === 'error' ? 'n/a' : '—'; return; }
@@ -470,23 +478,6 @@
       li.select('.wf-feed-k').text(d.kind);
     });
     activate(d3.select(ol).selectAll('li.wf-feed-i'), (d) => { if (d.state) { pick(d.state, {race: false}); pickRace(d.key); } });
-  });
-
-  dash.draw('tape', (ol) => {
-    if (!ok('big_bets')) { emptyList(ol, stat('big_bets') === 'error' ? 'Bet data is not available.' : 'Loading…'); return; }
-    const t = WF.t, s = BIG(), out = [];
-    for (let i = firstIdx(s, t + 1) - 1; i >= 0 && out.length < 50; i--) out.push(s[i]);
-    if (!out.length) { emptyList(ol, 'No large bets yet at the cursor time.'); return; }
-    feedList(ol, out.map((b) => ({...b, key: `${b.race_id}|${b.t}|${b.usd}`})), (li, d) => {
-      const r = raceInfo(d.race_id);
-      li.attr('class', `wf-feed-i${d.t > t - 1800 ? ' is-new' : ''}${d.race_id === WF.race ? ' is-sel' : ''}`).attr('tabindex', 0)
-        .attr('aria-label', `${usd(d.usd)} backing ${party(d.backs)} in ${r ? r.label : d.race_id} at ${cents(d.price)}, ${when(d.t)}`);
-      li.select('.wf-feed-t').text(when(d.t));
-      li.select('.wf-chip').attr('class', `wf-chip wf-chip-${d.backs.toLowerCase()}`).text(d.backs === 'O' ? '·' : d.backs);
-      li.select('.wf-feed-l').text(`${usd(d.usd)} · ${r ? r.label : d.race_id}`);
-      li.select('.wf-feed-k').text(`at ${cents(d.price)}`);
-    });
-    activate(d3.select(ol).selectAll('li.wf-feed-i'), (d) => pickRace(d.race_id));
   });
 
   // ------------------------------------------------------------------ state dossier
@@ -645,7 +636,9 @@
     el.textContent = head + base + meta;
   });
 
-  // ------------------------------------------------------------------ bet explorer
+  // ------------------------------------------------------------------ market card, laid out the way Kalshi shows a market
+  const OUT_COLORS = ['#b48cff', '#46d39a', '#ffb347', '#36c5d6', '#ff6bcb'];
+  const outColor = (o, i) => (o.party === 'D' ? C.dem : o.party === 'R' ? C.rep : OUT_COLORS[i % OUT_COLORS.length]);
   dash.draw('race-select', (sel) => {
     if (!ok('races')) return;
     if (!sel.options.length) {
@@ -654,7 +647,7 @@
       ['CONTROLS-2026', 'CONTROLH-2026'].forEach((id) => add(g0, raceInfo(id)));
       sel.append(g0);
       for (const office of ['Senate', 'Governor', 'House']) {
-        const g = document.createElement('optgroup'); g.label = `${office} · by contracts traded`;
+        const g = document.createElement('optgroup'); g.label = `${office} · by volume`;
         rowsOf('races').filter((r) => r.office === office).sort((a, b) => b.volume - a.volume).forEach((r) => add(g, r));
         sel.append(g);
       }
@@ -666,103 +659,241 @@
     if (stat(key) === 'idle') dash.load(key, `data/race/${encodeURIComponent(id)}.json`);
     return dash.data(key);
   }
-  const dEquiv = (b) => (b.backs === 'D' ? b.price : b.backs === 'R' ? 1 - b.price : null);
-  dash.draw('explorer', {
+  function dayData(id, day) {
+    const key = `day:${id}:${day}`;
+    if (stat(key) === 'idle') dash.load(key, `data/trades/${encodeURIComponent(id)}/${day}.json`);
+    return dash.data(key);
+  }
+  const MKT = (id) => memo(`mkt:${id}`, [`race:${id}`], () => {
+    const raw = dash.data(`race:${id}`).raw || {};
+    const outs = raw.outcomes || [], ser = outs.map(() => []);
+    for (const [t, i, p, n] of raw.px || []) if (ser[i]) ser[i].push({t, p, n, r: t >= N0 && t < N1 ? 60 : 600});
+    return {outs, ser, raw, all: ser.flat().sort((a, b) => a.t - b.t)};
+  });
+  function chanceAt(mk, i, t, r) {
+    const o = mk.outs[i];
+    if (r && r.winner && r.called_ts && t >= r.called_ts) return {p: o.party === r.winner ? 1 : 0, settled: true};
+    const row = lastAt(mk.ser[i], t);
+    return row ? {p: row.p, settled: false} : null;
+  }
+  const mktState = () => {
+    const id = WF.race, r = raceInfo(id), ds = raceData(id);
+    return {id, r, ds, mk: ds.status === 'ok' ? MKT(id) : null};
+  };
+  const notReady = (el, s) => { el.textContent = s.ds.status === 'error' ? `No trades on file for ${s.r ? s.r.label : s.id} between Oct 20 and Nov 12.` : 'Loading…'; };
+
+  dash.draw('mkt-vol', (el) => {
+    const r = raceInfo(WF.race);
+    if (!r) { el.textContent = ''; return; }
+    const parts = [];
+    if (r.volume) parts.push(`${usd(r.volume)} vol`);
+    if (r.winner && r.called_ts && WF.t >= r.called_ts) parts.push(`Settled: ${party(r.winner)}, ${when(r.called_ts)}`);
+    else parts.push('Open at the cursor');
+    el.textContent = parts.join(' · ');
+  });
+  dash.draw('mkt-q', (el) => {
+    const s = mktState();
+    el.textContent = (s.mk && s.mk.raw.question) || (s.r ? s.r.label : '—');
+  });
+  dash.draw('mkt-head', (el) => {
+    clear(el);
+    const s = mktState();
+    if (!s.mk) { notReady(el, s); return; }
+    const {mk, r} = s, a = WF.range[0];
+    const cur = mk.outs.map((o, i) => ({o, i, c: chanceAt(mk, i, WF.t, r), s0: chanceAt(mk, i, Math.max(a, RANGES.campaign[0]), r)}))
+      .sort((p, q) => (q.c ? q.c.p : -1) - (p.c ? p.c.p : -1));
+    const lead = cur[0];
+    if (lead && lead.c) {
+      const box = document.createElement('div'); box.className = 'wf-mkt-lead';
+      const v = document.createElement('div'); v.className = 'wf-mkt-lead-v';
+      v.textContent = `${Math.round(lead.c.p * 100)}%`;
+      const small = document.createElement('small'); small.textContent = lead.c.settled ? 'settled' : 'chance'; v.append(small);
+      if (lead.s0 && !lead.c.settled) {
+        const d = Math.round((lead.c.p - lead.s0.p) * 100);
+        if (d) { const ch = document.createElement('span'); ch.className = `wf-chg ${d > 0 ? 'up' : 'down'}`; ch.textContent = `${d > 0 ? '▲' : '▼'} ${Math.abs(d)}`; ch.title = 'Change since the start of the chart window, in points'; v.append(ch); }
+      }
+      const l = document.createElement('div'); l.className = 'wf-mkt-lead-l'; l.textContent = `${lead.o.label} · at ${F.time.format(D(WF.t))} ET, ${F.md.format(D(WF.t))}`;
+      box.append(v, l); el.append(box);
+    }
+    const keys = document.createElement('div'); keys.className = 'wf-mkt-keys';
+    cur.forEach(({o, i, c}) => {
+      const k = document.createElement('span'), dot = document.createElement('i'), b = document.createElement('b');
+      dot.style.background = outColor(o, i); b.textContent = c ? `${Math.round(c.p * 100)}%` : '—';
+      k.append(dot, document.createTextNode(o.label), b); keys.append(k);
+    });
+    el.append(keys);
+  });
+
+  dash.draw('mkt-chart', {
     mount(el) {
       const box = d3.select(el);
       const msg = box.append('p').attr('class', 'wf-msg');
       const svg = box.append('svg').attr('role', 'img');
       const tip = box.append('div').attr('class', 'wf-tip').attr('hidden', '');
-      return {box, msg, svg, tip, tipB: tip.append('b'), tipS: tip.append('span')};
+      return {msg, svg, tip, tipB: tip.append('b'), tipS: tip.append('span')};
     },
     update(el, m) {
-      const id = WF.race, r = raceInfo(id), ds = raceData(id);
-      if (ds.status !== 'ok') {
-        m.svg.attr('hidden', '');
-        m.msg.attr('hidden', null).text(ds.status === 'error' ? `No trades on file for ${r ? r.label : id} between Oct 20 and Nov 12.` : 'Loading trades…');
-        return;
-      }
+      const s = mktState();
+      if (!s.mk) { m.svg.attr('hidden', ''); m.msg.attr('hidden', null).text(s.ds.status === 'error' ? 'No trades on file for this market in the window.' : 'Loading trades…'); return; }
       m.msg.attr('hidden', ''); m.svg.attr('hidden', null);
-      const rows = ds.data, bets = (ds.raw && ds.raw.bets) || [];
-      const [a, b] = WF.range;
-      const W = Math.max(280, Math.floor(el.clientWidth || 700)), PH = 140, BH = 64, AX = 22, H = PH + BH + AX + 8, ml = 40, mr = 10;
+      const {mk, r} = s, [a, b] = WF.range;
+      const W = Math.max(280, Math.floor(el.clientWidth || 700)), ml = 6, mr = 44, PT = 10, PH = 214, VB = 236, VH = 34, H = VB + VH + 24;
       const x = d3.scaleLinear().domain([a, b]).range([ml, W - mr]);
-      const y = d3.scaleLinear().domain([0, 1]).range([PH - 4, 6]);
+      const y = d3.scaleLinear().domain([0, 1]).range([PH, PT]);
       const svg = m.svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H)
-        .attr('aria-label', `${r ? r.label : id}: traded price for Democrats and dollars bet on each side, over the time window`);
+        .attr('aria-label', `${r ? r.label : s.id}: chance of each outcome over the chart window, with contracts traded`);
       svg.selectAll('*').remove();
       for (const v of [0, 0.25, 0.5, 0.75, 1]) {
-        svg.append('line').attr('x1', ml).attr('x2', W - mr).attr('y1', y(v)).attr('y2', y(v)).style('stroke', v === 0.5 ? '#3a4a5e' : '#152030').style('stroke-dasharray', v === 0.5 ? '3 3' : null);
-        svg.append('text').attr('x', ml - 5).attr('y', y(v) + 3).attr('text-anchor', 'end').text(`${v * 100}%`);
+        svg.append('line').attr('x1', ml).attr('x2', W - mr).attr('y1', y(v)).attr('y2', y(v)).style('stroke', '#1c2836').style('stroke-dasharray', '2 4');
+        svg.append('text').attr('x', W - mr + 6).attr('y', y(v) + 3.5).text(`${v * 100}%`);
       }
-      const priced = rows.filter((d) => d.p != null);
-      const prev = lastAt(priced, a);
-      const pts = (prev ? [{...prev, t: a}] : []).concat(priced.filter((d) => d.t > a && d.t <= b));
-      const settled = r && r.winner && r.called_ts && r.called_ts <= b ? r.called_ts : null;
-      if (pts.length) {
-        const end = settled ? Math.min(settled, b) : Math.min(b, priced[priced.length - 1].t + 600);
-        if (pts[pts.length - 1].t < end) pts.push({...pts[pts.length - 1], t: end});
-        svg.append('path').datum(pts).attr('d', d3.line().x((d) => x(d.t)).y((d) => y(d.p)).curve(d3.curveStepAfter)).style('fill', 'none').style('stroke', C.fg).style('stroke-width', 1.5);
-      } else {
-        svg.append('text').attr('x', (ml + W - mr) / 2).attr('y', PH / 2).attr('text-anchor', 'middle').text('No trades in this time window');
+      const settledAt = r && r.winner && r.called_ts ? r.called_ts : null;
+      const lines = mk.outs.map((o, i) => {
+        const ser = mk.ser[i], prev = lastAt(ser, a);
+        const pts = (prev ? [{t: a, p: prev.p}] : []).concat(ser.filter((d) => d.t > a && d.t <= b && (!settledAt || d.t < settledAt)));
+        if (settledAt && settledAt > a && settledAt <= b) pts.push({t: settledAt, p: o.party === r.winner ? 1 : 0});
+        if (pts.length && pts[pts.length - 1].t < b) pts.push({t: b, p: pts[pts.length - 1].p});
+        return {o, i, pts};
+      });
+      for (const ln of lines.slice().reverse()) {
+        if (!ln.pts.length) continue;
+        svg.append('path').datum(ln.pts).attr('d', d3.line().x((d) => x(d.t)).y((d) => y(d.p)).curve(d3.curveStepAfter))
+          .style('fill', 'none').style('stroke', outColor(ln.o, ln.i)).style('stroke-width', 2).style('stroke-linejoin', 'round');
       }
-      if (settled) {
-        svg.append('line').attr('x1', x(settled)).attr('x2', x(settled)).attr('y1', 6).attr('y2', PH + BH).style('stroke', r.winner === 'D' ? C.dem : C.rep).style('stroke-dasharray', '4 3');
-        svg.append('text').attr('x', x(settled) + 4).attr('y', 14).style('fill', r.winner === 'D' ? C.dem : C.rep).text(`settled ${r.winner}`);
-      }
-      const inWin = bets.filter((d) => d.t >= a && d.t <= b && dEquiv(d) != null);
-      const rs = d3.scaleSqrt().domain([0, d3.max(inWin, (d) => d.usd) || 1]).range([1.5, 9]);
-      svg.append('g').selectAll('circle').data(inWin).join('circle').attr('cx', (d) => x(d.t)).attr('cy', (d) => y(dEquiv(d))).attr('r', (d) => rs(d.usd))
-        .style('fill', (d) => (d.backs === 'D' ? C.dem : C.rep)).style('fill-opacity', 0.35).style('stroke', (d) => (d.backs === 'D' ? C.dem : C.rep)).style('stroke-width', 1);
-      // dollars backing each side, D above the line, R below
-      const nb = Math.max(30, Math.min(240, Math.floor((W - ml - mr) / 4)));
-      const bd = binSum(rows, a, b, nb, (d) => d.d, 600), br = binSum(rows, a, b, nb, (d) => d.rr, 600);
-      const mx = Math.max(d3.max(bd) || 0, d3.max(br) || 0) || 1;
-      const mid = PH + BH / 2, yb = d3.scaleSqrt().domain([0, mx]).range([0, BH / 2 - 2]);
-      const bw = (W - ml - mr) / nb;
-      svg.append('line').attr('x1', ml).attr('x2', W - mr).attr('y1', mid).attr('y2', mid).style('stroke', '#2b3a4d');
-      for (let k = 0; k < nb; k++) {
-        if (bd[k]) svg.append('rect').attr('x', ml + k * bw).attr('width', Math.max(1, bw - 1)).attr('y', mid - yb(bd[k])).attr('height', yb(bd[k])).style('fill', C.dem);
-        if (br[k]) svg.append('rect').attr('x', ml + k * bw).attr('width', Math.max(1, bw - 1)).attr('y', mid).attr('height', yb(br[k])).style('fill', C.rep);
-      }
-      const binLabel = (b - a) / nb >= 3600 ? `${Math.round((b - a) / nb / 3600)} h` : `${Math.max(1, Math.round((b - a) / nb / 60))} min`;
-      svg.append('text').attr('x', ml - 5).attr('y', mid - BH / 2 + 10).attr('text-anchor', 'end').style('fill', C.dem).text('D');
-      svg.append('text').attr('x', ml - 5).attr('y', mid + BH / 2 - 2).attr('text-anchor', 'end').style('fill', C.rep).text('R');
-      svg.append('text').attr('x', W - mr).attr('y', PH + 10).attr('text-anchor', 'end').text(`$ bet per ${binLabel} · max ${usd(mx)}`);
-      // axis + cursor
+      // contracts traded, all outcomes, faint bars under the chart
+      const nb = Math.max(30, Math.min(200, Math.floor((W - ml - mr) / 5))), bw = (b - a) / nb;
+      const vols = binSum(mk.all, a, b, nb, (d) => d.n, 600), vmax = d3.max(vols) || 1;
+      const bwPx = Math.max(1, (W - ml - mr) / nb - 1);
+      for (let k = 0; k < nb; k++) if (vols[k]) svg.append('rect').attr('x', x(a + k * bw)).attr('width', bwPx).attr('y', VB + VH - (vols[k] / vmax) * VH).attr('height', (vols[k] / vmax) * VH).style('fill', '#3a4a5e');
+      const binLabel = bw >= 3600 ? `${Math.round(bw / 3600)} h` : `${Math.max(1, Math.round(bw / 60))} min`;
+      svg.append('text').attr('x', W - mr + 6).attr('y', VB + 9).text(fmtN(vmax));
+      svg.append('text').attr('x', ml).attr('y', VB + 9).text(`contracts per ${binLabel}`);
       const {out, step} = ticks(a, b, W - ml - mr);
-      for (const t of out) svg.append('text').attr('x', x(t)).attr('y', PH + BH + 16).attr('text-anchor', 'middle').text(tickLabel(t, step));
-      if (WF.t >= a && WF.t <= b) svg.append('line').attr('x1', x(WF.t)).attr('x2', x(WF.t)).attr('y1', 4).attr('y2', PH + BH).style('stroke', C.amber).style('stroke-width', 1.5);
-      // hover
-      const hover = svg.append('line').style('stroke', C.fg).style('stroke-opacity', 0.35).style('stroke-dasharray', '2 3').style('display', 'none');
-      svg.append('rect').attr('x', ml).attr('y', 0).attr('width', W - ml - mr).attr('height', PH + BH).style('fill', 'transparent')
+      for (const t of out) svg.append('text').attr('x', x(t)).attr('y', VB + VH + 16).attr('text-anchor', x(t) < ml + 20 ? 'start' : 'middle').text(tickLabel(t, step));
+      if (settledAt && settledAt >= a && settledAt <= b) {
+        svg.append('line').attr('x1', x(settledAt)).attr('x2', x(settledAt)).attr('y1', PT).attr('y2', VB + VH).style('stroke', '#5d6d82').style('stroke-dasharray', '3 3');
+        svg.append('text').attr('x', x(settledAt) + 4).attr('y', (PT + PH) / 2).text('settled');
+      }
+      // cursor, with each outcome's chance labelled on the right of its dot
+      if (WF.t >= a && WF.t <= b) {
+        const cx = x(WF.t);
+        svg.append('line').attr('x1', cx).attr('x2', cx).attr('y1', PT).attr('y2', VB + VH).style('stroke', C.amber).style('stroke-width', 1.5);
+        const marks = mk.outs.map((o, i) => ({o, i, c: chanceAt(mk, i, WF.t, r)})).filter((d) => d.c).sort((p, q) => q.c.p - p.c.p);
+        let lastY = -Infinity;
+        for (const d of marks) {
+          const cy = y(d.c.p), ly = Math.max(cy, lastY + 14); lastY = ly;
+          svg.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 4).style('fill', outColor(d.o, d.i)).style('stroke', '#0e151e').style('stroke-width', 2);
+          const right = cx < W - mr - 120;
+          svg.append('text').attr('x', right ? cx + 8 : cx - 8).attr('y', ly + 4).attr('text-anchor', right ? 'start' : 'end')
+            .style('fill', outColor(d.o, d.i)).style('font', '600 11.5px ui-monospace, monospace').style('paint-order', 'stroke').style('stroke', '#0e151e').style('stroke-width', 4).style('stroke-linejoin', 'round').text(`${d.o.label.length > 22 ? d.o.label.slice(0, 21) + '…' : d.o.label} ${Math.round(d.c.p * 100)}%`);
+        }
+      }
+      const hover = svg.append('line').style('stroke', C.fg).style('stroke-opacity', 0.35).style('stroke-dasharray', '2 3').style('display', 'none').style('pointer-events', 'none');
+      svg.append('rect').attr('x', ml).attr('y', 0).attr('width', W - ml - mr).attr('height', VB + VH).style('fill', 'transparent').style('cursor', 'crosshair')
         .on('pointermove', (ev) => {
           const [px, py] = d3.pointer(ev, el), t = x.invert(d3.pointer(ev, svg.node())[0]);
-          const p = lastAt(priced, t), k = Math.min(nb - 1, Math.max(0, Math.floor((t - a) / ((b - a) / nb))));
-          hover.style('display', null).attr('x1', x(t)).attr('x2', x(t)).attr('y1', 4).attr('y2', PH + BH);
+          hover.style('display', null).attr('x1', x(t)).attr('x2', x(t)).attr('y1', PT).attr('y2', VB + VH);
           m.tipB.text(`${F.day.format(D(t))} · ${F.time.format(D(t))}`);
-          m.tipS.text(`Traded price for D ${p ? pct1(p.p) : '—'} · backing D ${usd(bd[k])}, backing R ${usd(br[k])} in this ${binLabel}`);
+          m.tipS.text(mk.outs.map((o, i) => { const c = chanceAt(mk, i, t, r); return `${o.label} ${c ? Math.round(c.p * 100) + '%' : '—'}`; }).join(' · '));
           m.tip.attr('hidden', null).style('left', `${Math.max(0, Math.min(px + 12, el.clientWidth - 270))}px`).style('top', `${Math.max(0, py - 50)}px`);
         })
         .on('pointerleave', () => { hover.style('display', 'none'); m.tip.attr('hidden', ''); })
         .on('click', (ev) => { if (WF.playing) stop(); WF.moment = null; setT(x.invert(d3.pointer(ev, svg.node())[0])); });
     },
   });
-  dash.draw('explorer-stats', (el) => {
-    const id = WF.race, r = raceInfo(id), ds = dash.data(`race:${id}`);
-    if (ds.status !== 'ok') { el.textContent = r ? r.label : '—'; return; }
-    const rows = ds.data, bets = (ds.raw && ds.raw.bets) || [];
-    const p = lastAt(rows.filter((d) => d.p != null), WF.t);
-    let d = 0, rr = 0;
-    for (let i = firstIdx(rows, WF.t - 3600); i < rows.length && rows[i].t < WF.t; i++) { d += rows[i].d; rr += rows[i].rr; }
-    let tot = 0, n = 0;
-    for (let i = 0; i < rows.length && rows[i].t < WF.t; i++) { tot += rows[i].d + rows[i].rr + rows[i].o; n += rows[i].bets; }
-    const big = bets.filter((b) => b.t <= WF.t).reduce((x, y) => (!x || y.usd > x.usd ? y : x), null);
-    el.textContent = `${r ? r.label : id} at the cursor: traded price for Democrats ${p ? pct1(p.p) : '—'}`
-      + ` · past hour ${usd(d)} backing D, ${usd(rr)} backing R · ${usd(tot)} in ${fmtInt(n)} bets since Oct 20`
-      + (big ? ` · largest so far ${usd(big.usd)} backing ${big.backs} at ${cents(big.price)} (${when(big.t)})` : '')
-      + ' · circles are single bets of real size, placed at the price they imply for D.';
+
+  dash.draw('mkt-table', (tb) => {
+    clear(tb);
+    const s = mktState();
+    const row = (cells) => { const tr = document.createElement('tr'); cells.forEach((c) => tr.append(c)); tb.append(tr); };
+    const td = (text, cls) => { const e = document.createElement('td'); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+    if (!s.mk) { const c = td(null); c.colSpan = 5; notReady(c, s); row([c]); return; }
+    const {mk, r} = s;
+    mk.outs.map((o, i) => ({o, i, c: chanceAt(mk, i, WF.t, r)})).sort((p, q) => (q.c ? q.c.p : -1) - (p.c ? p.c.p : -1)).forEach(({o, i, c}) => {
+      const name = td(null), dot = document.createElement('i'); dot.style.background = outColor(o, i); name.append(dot, document.createTextNode(o.label));
+      const chance = td(c ? `${Math.round(c.p * 100)}%` : '—', 'wf-mkt-chance');
+      const yes = td(null), no = td(null), ys = document.createElement('span'), ns = document.createElement('span');
+      if (c && c.settled) {
+        ys.className = `wf-yes ${c.p ? 'wf-won' : 'wf-lost'}`; ys.textContent = c.p ? 'Won' : 'Lost';
+        ns.className = `wf-no ${c.p ? 'wf-lost' : 'wf-won'}`; ns.textContent = c.p ? 'Lost' : 'Won';
+      } else {
+        ys.className = 'wf-yes'; ys.textContent = c ? `Yes ${cents(c.p)}` : 'Yes —';
+        ns.className = 'wf-no'; ns.textContent = c ? `No ${cents(1 - c.p)}` : 'No —';
+      }
+      yes.append(ys); no.append(ns);
+      const traded = mk.ser[i].reduce((acc, d) => acc + (d.t <= WF.t ? d.n : 0), 0);
+      row([name, chance, yes, no, td(fmtN(traded))]);
+    });
   });
+
+  // ------------------------------------------------------------------ trades: every bet in the market, or the biggest bets
+  const CATS = [['midterms', 'Midterms', '#f0b44c'], ['politics', 'Politics', '#b48cff'], ['sports', 'Sports', '#46d39a'], ['crypto', 'Crypto', '#ff9f43'],
+    ['parlays', 'Parlay', '#ff6bcb'], ['finance', 'Finance', '#5fb3ff'], ['weather', 'Weather', '#36c5d6'], ['other', 'Other', '#6b7a8f']];
+  const CAT = Object.fromEntries(CATS.map(([g, label, col]) => [g, {label, col}]));
+  const KCATS = () => memo('kcats', ['kalshi_cats'], (rows) => group(rows, (r) => r.g, 't'));
+  const KBIG = () => memo('kbig', ['kalshi_big'], (b) => b.slice().sort((p, q) => p.t - q.t));
+  dash.draw('tape-sub', (el) => {
+    const r = raceInfo(WF.race);
+    el.textContent = WF.tape === 'market' ? `Every bet in ${r ? r.label : 'this market'} up to the cursor, newest first. One bet = one order; amber = $10K or more.`
+      : WF.tape === 'mid' ? 'The largest midterm bets (priced 3–97¢) up to the cursor, newest first.'
+        : 'The largest bets anywhere on Kalshi (priced 3–97¢) up to the cursor. Covers Nov 3 5 PM – Nov 4 9 AM ET.';
+  });
+  function tapeMarket(ol) {
+    const s = mktState();
+    if (s.ds.status !== 'ok') { emptyList(ol, s.ds.status === 'error' ? 'No trades on file for this market.' : 'Loading…'); return; }
+    const days = (s.mk.raw.days || []).filter((d) => d <= etDate(WF.t));
+    if (!days.length) { emptyList(ol, 'No bets in this market yet at the cursor time.'); return; }
+    const out = [];
+    for (let j = days.length - 1; j >= 0 && out.length < 120 && j >= days.length - 3; j--) {
+      const dd = dayData(s.id, days[j]);
+      if (dd.status === 'loading' || dd.status === 'idle') { if (!out.length) { emptyList(ol, 'Loading trades…'); return; } break; }
+      if (dd.status !== 'ok') continue;
+      const rows = dd.data;
+      for (let i = rows.length - 1; i >= 0 && out.length < 120; i--) if (rows[i][0] <= WF.t) out.push(rows[i]);
+    }
+    if (!out.length) { emptyList(ol, 'No bets in this market yet at the cursor time.'); return; }
+    feedList(ol, out.map((b) => ({key: `${b[0]}|${b[1]}|${b[2]}|${b[4]}|${b[5]}`, t: b[0], i: b[1], yes: b[2], price: b[3], n: b[4], usd: b[5]})), (li, d) => {
+      const o = s.mk.outs[d.i] || {label: '?'};
+      li.attr('class', `wf-feed-i wf-trade-i${d.usd >= 10000 ? ' is-big' : ''}`).attr('tabindex', null);
+      li.select('.wf-feed-t').text(F.time.format(D(d.t)));
+      li.select('.wf-chip').attr('class', `wf-chip ${d.yes ? 'wf-side-yes' : 'wf-side-no'}`).text(d.yes ? 'Yes' : 'No');
+      li.select('.wf-feed-l').text(`${o.label} · ${fmtN(d.n)} @ ${cents(d.price)}`).attr('title', `${d.yes ? 'Bought Yes' : 'Bought No'} on ${o.label}: ${fmtInt(Math.round(d.n))} contracts at ${cents(d.price)}, ${when(d.t)}`);
+      li.select('.wf-feed-k').attr('class', 'wf-feed-k wf-feed-usd').text(usd(d.usd));
+    });
+  }
+  function tapeMid(ol) {
+    if (!ok('big_bets')) { emptyList(ol, stat('big_bets') === 'error' ? 'Bet data is not available.' : 'Loading…'); return; }
+    const t = WF.t, s = BIG(), out = [];
+    for (let i = firstIdx(s, t + 1) - 1; i >= 0 && out.length < 80; i--) out.push(s[i]);
+    if (!out.length) { emptyList(ol, 'No large bets yet at the cursor time.'); return; }
+    feedList(ol, out.map((b) => ({...b, key: `${b.race_id}|${b.t}|${b.usd}`})), (li, d) => {
+      const r = raceInfo(d.race_id);
+      li.attr('class', `wf-feed-i${d.t > t - 1800 ? ' is-new' : ''}${d.race_id === WF.race ? ' is-sel' : ''}`).attr('tabindex', 0);
+      li.select('.wf-feed-t').text(when(d.t));
+      li.select('.wf-chip').attr('class', `wf-chip wf-chip-${d.backs.toLowerCase()}`).attr('style', null).text(d.backs === 'O' ? '·' : d.backs);
+      li.select('.wf-feed-l').text(`${r ? r.label : d.race_id} · backs ${party(d.backs)} @ ${cents(d.price)}`);
+      li.select('.wf-feed-k').attr('class', 'wf-feed-k wf-feed-usd').text(usd(d.usd));
+    });
+    activate(d3.select(ol).selectAll('li.wf-feed-i'), (d) => pickRace(d.race_id));
+  }
+  function tapeAll(ol) {
+    if (!ok('kalshi_big')) { emptyList(ol, stat('kalshi_big') === 'error' ? 'Whole-exchange data is not available yet.' : 'Loading…'); return; }
+    const t = WF.t, s = KBIG(), out = [];
+    for (let i = firstIdx(s, t + 1) - 1; i >= 0 && out.length < 80; i--) out.push(s[i]);
+    if (!out.length) { emptyList(ol, t < N0 ? 'Whole-exchange bets start Nov 3 at 5 PM ET. Move the cursor there.' : 'No large bets yet at the cursor time.'); return; }
+    feedList(ol, out.map((b) => ({...b, key: `${b.ticker}|${b.t}|${b.usd}`})), (li, d) => {
+      const c = CAT[d.g] || CAT.other;
+      li.attr('class', `wf-feed-i${d.t > t - 600 ? ' is-new' : ''}`).attr('tabindex', d.race_id ? 0 : null);
+      li.select('.wf-feed-t').text(F.time.format(D(d.t)));
+      li.select('.wf-chip').attr('class', 'wf-chip').style('background', c.col).text(c.label);
+      const r = d.race_id ? raceInfo(d.race_id) : null, sfx = d.ticker.split('-').pop();
+      const what = r ? `${r.label} · ${d.outcome || ({D: 'Democratic', R: 'Republican'}[sfx] || sfx)}` : d.title ? `${d.title}${d.outcome && !d.title.includes(d.outcome) ? ` · ${d.outcome}` : ''}` : d.ticker;
+      li.select('.wf-feed-l').text(`${d.side} @ ${cents(d.price)} · ${what}`).attr('title', `${d.side} at ${cents(d.price)}: ${what} (${d.ticker})`);
+      li.select('.wf-feed-k').attr('class', 'wf-feed-k wf-feed-usd').text(usd(d.usd));
+    });
+    activate(d3.select(ol).selectAll('li.wf-feed-i'), (d) => { if (d.race_id) pickRace(d.race_id); });
+  }
+  dash.draw('tape', (ol) => (WF.tape === 'market' ? tapeMarket(ol) : WF.tape === 'all' ? tapeAll(ol) : tapeMid(ol)));
 
   // ------------------------------------------------------------------ key moments
   const KIND = {control: 'Control', call: 'Call', swing: 'Swing', bet: 'Big bet'};
@@ -823,7 +954,7 @@
       const actions = document.createElement('div'); actions.className = 'wf-mom-actions';
       const show = document.createElement('button'); show.type = 'button'; show.className = 'wf-btn wf-btn-solid';
       const hide = document.createElement('button'); hide.type = 'button'; hide.className = 'wf-btn'; hide.textContent = 'Hide posts';
-      const open = document.createElement('button'); open.type = 'button'; open.className = 'wf-btn'; open.textContent = 'Open in bet explorer';
+      const open = document.createElement('button'); open.type = 'button'; open.className = 'wf-btn'; open.textContent = 'Open the market';
       actions.append(show, hide, open);
       const embeds = document.createElement('div'); embeds.className = 'wf-embeds';
       const note = document.createElement('p'); note.className = 'wf-embed-note';
@@ -832,7 +963,7 @@
       const m = {title, meta, show, hide, open, embeds, note, shownId: null};
       show.addEventListener('click', () => { WF.embedsOn = true; m.shownId = null; dash.draw('moment-detail'); });
       hide.addEventListener('click', () => { WF.embedsOn = false; m.shownId = null; clear(embeds); dash.draw('moment-detail'); });
-      open.addEventListener('click', () => { const c = currentMoment(); if (c && c.race_id) { pickRace(c.race_id); document.getElementById('wf-race-select').scrollIntoView({behavior: 'smooth', block: 'center'}); } });
+      open.addEventListener('click', () => { const c = currentMoment(); if (c && c.race_id) { WF.tape = 'market'; syncUI(); pickRace(c.race_id); document.getElementById('wf-race-select').scrollIntoView({behavior: 'smooth', block: 'start'}); } });
       return m;
     },
     update(el, m) {
@@ -855,17 +986,21 @@
   });
 
   // ------------------------------------------------------------------ time lanes
-  const LANE = 34, AXIS = 22, TOP = 14, NL = 10;
+  const AXIS = 22, TOP = 14;
+  const LANES = [['ctrl', 34], ['settled', 34], ['kalshi', 68], ['bets', 34], ['big', 34], ['streams', 34], ['chat', 34], ['reddit', 34], ['bsky', 34], ['poly', 34], ['gas', 34]];
+  const LY = {};
+  let PLOT_H = 0;
+  for (const [k, h] of LANES) { LY[k] = {y: TOP + PLOT_H, h}; PLOT_H += h; }
 
   dash.draw('lanes', {
     mount(el) {
       const box = d3.select(el);
       const svg = box.append('svg').attr('class', 'wf-lanes-svg').attr('role', 'img').attr('tabindex', 0)
-        .attr('aria-label', 'Timeline lanes: chamber-control odds, race settlements, bets, streams, live chat, Reddit, Bluesky, Polymarket, gas and oil. Amber diamonds are key moments; the amber line is the cursor. Drag or use arrow keys to move it.');
+        .attr('aria-label', 'Timeline lanes: chamber-control odds, race settlements, all Kalshi volume by category, midterm bets, streams, live chat, Reddit, Bluesky, Polymarket, gas and oil. Amber diamonds are key moments; the amber line is the cursor. Drag or use arrow keys to move it.');
       const base = svg.append('g'), marks = svg.append('g'), axis = svg.append('g').attr('class', 'wf-axis');
       const hover = svg.append('line').attr('class', 'wf-hover').style('display', 'none').style('pointer-events', 'none');
       const cursor = svg.append('g').attr('class', 'wf-cursor').style('pointer-events', 'none');
-      cursor.append('line'); cursor.append('rect').attr('height', 15).attr('y', NL * LANE + TOP + 4); cursor.append('text').attr('y', NL * LANE + TOP + 15);
+      cursor.append('line'); cursor.append('rect').attr('height', 15).attr('y', TOP + PLOT_H + 4); cursor.append('text').attr('y', TOP + PLOT_H + 15);
       const tip = box.append('div').attr('class', 'wf-tip').attr('hidden', '');
       const m = {box, svg, base, marks, axis, hover, cursor, tip, tipB: tip.append('b'), tipS: tip.append('span'), key: ''};
       let dragging = false;
@@ -880,11 +1015,11 @@
           if (dragging) { setT(tAt(ev)); return; }
           const t = Math.round(tAt(ev) / 60) * 60, [px, py] = d3.pointer(ev, el);
           m.hover.style('display', null).attr('x1', m.x(t)).attr('x2', m.x(t));
-          const sen = lastAt(CTRL().get('Senate'), t), hou = lastAt(CTRL().get('House'), t);
+          const sen = ok('control') ? lastAt(CTRL().get('Senate'), t) : null, hou = ok('control') ? lastAt(CTRL().get('House'), t) : null;
           const called = ok('races') ? RX().calls.filter((r) => r.called_ts <= t).length : 0;
-          const live = rowsOf('streams').filter((s) => s.start <= t && s.end >= t).length;
+          const kal = ok('kalshi_cats') ? binSum(rowsOf('kalshi_cats'), t, t + 60, 1, (r) => r.n, 3600)[0] : null;
           m.tipB.text(`${F.day.format(D(t))} · ${F.time.format(D(t))}`);
-          m.tipS.text(`Senate P(D) ${sen ? pct1(sen.p_dem) : '—'} · House P(D) ${hou ? pct1(hou.p_dem) : '—'} · ${fmtInt(called)} races settled · ${live} streams on air`);
+          m.tipS.text(`Senate P(D) ${sen ? pct1(sen.p_dem) : '—'} · House P(D) ${hou ? pct1(hou.p_dem) : '—'} · ${fmtInt(called)} races settled${kal != null ? ` · ${fmtN(kal)} contracts/min on all of Kalshi` : ''}`);
           m.tip.attr('hidden', null).style('left', `${Math.max(0, Math.min(px + 12, el.clientWidth - 270))}px`).style('top', `${Math.max(0, py - 54)}px`);
         })
         .on('pointerleave', () => { m.hover.style('display', 'none'); m.tip.attr('hidden', ''); })
@@ -899,14 +1034,13 @@
       return m;
     },
     update(el, m) {
-      const W = Math.max(240, Math.floor(el.clientWidth || 600)), H = TOP + NL * LANE + AXIS;
+      const W = Math.max(240, Math.floor(el.clientWidth || 600)), H = TOP + PLOT_H + AXIS;
       const [a, b] = WF.range;
       const key = `${W}|${a}|${b}|${DATASETS.map((i) => `${stat(i)}:${rowsOf(i).length}`).join(',')}`;
       m.x = d3.scaleLinear().domain([a, b]).range([0, W]);
       m.svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
-      m.hover.attr('y1', TOP).attr('y2', TOP + NL * LANE);
+      m.hover.attr('y1', TOP).attr('y2', TOP + PLOT_H);
       if (key !== m.key) { m.key = key; drawLanes(m, W, a, b); }
-      // moment markers (selection changes with the cursor)
       const cur = ok('moments') ? currentMoment() : null;
       const ms = ok('moments') ? MOMENTS().filter((d) => d.t >= a && d.t <= b) : [];
       m.marks.selectAll('path').data(ms, (d) => d.id).join((en) => en.append('path').attr('class', 'wf-mom-mark').attr('tabindex', 0).attr('role', 'button')
@@ -915,7 +1049,7 @@
         .attr('d', (d) => `M${m.x(d.t)},2 l5,5 l-5,5 l-5,-5 z`).classed('is-sel', (d) => cur && cur.id === d.id)
         .attr('aria-label', (d) => `${F.time.format(D(d.t))}: ${d.title}`);
       const x = m.x(WF.t), label = F.time.format(D(WF.t));
-      m.cursor.select('line').attr('x1', x).attr('x2', x).attr('y1', TOP).attr('y2', TOP + NL * LANE);
+      m.cursor.select('line').attr('x1', x).attr('x2', x).attr('y1', TOP).attr('y2', TOP + PLOT_H);
       const tw = label.length * 6.6 + 10, tx = Math.min(Math.max(0, x - tw / 2), W - tw);
       m.cursor.select('rect').attr('x', tx).attr('width', tw);
       m.cursor.select('text').attr('x', tx + 5).text(label);
@@ -924,23 +1058,25 @@
 
   function drawLanes(m, W, a, b) {
     const g = m.base; g.selectAll('*').remove();
-    const x = m.x, laneY = (i) => TOP + i * LANE;
-    for (let i = 0; i <= NL; i++) g.append('line').attr('class', 'wf-lane-sep').attr('x1', 0).attr('x2', W).attr('y1', laneY(i) + 0.5).attr('y2', laneY(i) + 0.5);
-    if (ok('moments')) for (const d of MOMENTS()) if (d.t >= a && d.t <= b) g.append('line').attr('class', 'wf-mom-rule').attr('x1', x(d.t)).attr('x2', x(d.t)).attr('y1', 12).attr('y2', laneY(NL));
-    const yIn = (i, lo, hi) => d3.scaleLinear().domain([lo, hi]).range([laneY(i) + LANE - 4, laneY(i) + 5]);
-    const note = (i, text, col = C.muted, dy = 0) => g.append('text').attr('x', W - 4).attr('y', laneY(i) + 11 + dy).attr('text-anchor', 'end').style('fill', col).style('font', '500 9.5px ui-monospace, monospace').text(text);
-    const missing = (i, id) => { if (stat(id) === 'error') note(i, 'not available yet', C.muted); return !ok(id); };
+    const x = m.x, ly = (k) => LY[k].y, lh = (k) => LY[k].h;
+    for (const [k] of LANES) g.append('line').attr('class', 'wf-lane-sep').attr('x1', 0).attr('x2', W).attr('y1', ly(k) + 0.5).attr('y2', ly(k) + 0.5);
+    g.append('line').attr('class', 'wf-lane-sep').attr('x1', 0).attr('x2', W).attr('y1', TOP + PLOT_H + 0.5).attr('y2', TOP + PLOT_H + 0.5);
+    if (ok('moments')) for (const d of MOMENTS()) if (d.t >= a && d.t <= b) g.append('line').attr('class', 'wf-mom-rule').attr('x1', x(d.t)).attr('x2', x(d.t)).attr('y1', 12).attr('y2', TOP + PLOT_H);
+    const yIn = (k, lo, hi) => d3.scaleLinear().domain([lo, hi]).range([ly(k) + lh(k) - 4, ly(k) + 5]);
+    const note = (k, text, col = C.muted, dy = 0) => g.append('text').attr('x', W - 4).attr('y', ly(k) + 11 + dy).attr('text-anchor', 'end').style('fill', col).style('font', '500 9.5px ui-monospace, monospace').text(text);
+    const missing = (k, id) => { if (stat(id) === 'error') note(k, 'not available yet', C.muted); return !ok(id); };
     const nb = Math.max(30, Math.min(220, Math.floor(W / 5))), bw = (b - a) / nb, bwPx = Math.max(1, W / nb - 1);
     const binLabel = bw >= 3600 ? `${Math.round(bw / 3600)} h` : `${Math.max(1, Math.round(bw / 60))} min`;
-    const area = (i, vals, col, label) => {
-      const mx = d3.max(vals) || 0, y = yIn(i, 0, mx || 1);
-      g.append('path').datum(Array.from(vals)).attr('d', d3.area().x((v, k) => x(a + k * bw)).y0(laneY(i) + LANE - 4).y1((v) => y(v)).curve(d3.curveStepAfter)).style('fill', col).style('opacity', 0.6);
-      note(i, label(mx));
+    const xs = (k) => x(a + k * bw);
+    const pad = (vals) => { const arr = Array.from(vals); arr.push(arr[arr.length - 1] || 0); return arr; };   // so the last bin has width
+    const area = (k, vals, col, label) => {
+      const mx = d3.max(vals) || 0, y = yIn(k, 0, mx || 1);
+      g.append('path').datum(pad(vals)).attr('d', d3.area().x((v, i) => xs(i)).y0(ly(k) + lh(k) - 4).y1((v) => y(v)).curve(d3.curveStepAfter)).style('fill', col).style('opacity', 0.6);
+      note(k, label(mx));
     };
 
-    // 0 chamber control
-    if (!missing(0, 'control')) {
-      const y0 = yIn(0, 0, 1);
+    if (!missing('ctrl', 'control')) {
+      const y0 = yIn('ctrl', 0, 1);
       g.append('line').attr('x1', 0).attr('x2', W).attr('y1', y0(0.5)).attr('y2', y0(0.5)).style('stroke', '#2b3a4d').style('stroke-dasharray', '2 3');
       for (const [ch, col] of [['House', C.house], ['Senate', C.senate]]) {
         const s = CTRL().get(ch) || [], prev = lastAt(s, a);
@@ -951,53 +1087,57 @@
         g.append('text').attr('x', W - 4).attr('y', y0(pts[pts.length - 1].p_dem) + (ch === 'House' ? 11 : -3)).attr('text-anchor', 'end').style('fill', col).style('font', '600 9.5px ui-monospace, monospace').text(ch);
       }
     }
-    // 1 race settlements per bin, stacked D over R
-    if (!missing(1, 'races')) {
+    if (!missing('settled', 'races')) {
       const bins = Array.from({length: nb}, () => ({d: 0, r: 0}));
       for (const r of RX().calls) if (r.called_ts >= a && r.called_ts < b) { const k = Math.min(nb - 1, Math.floor((r.called_ts - a) / bw)); if (r.winner === 'D') bins[k].d++; else bins[k].r++; }
-      const maxB = d3.max(bins, (q) => q.d + q.r) || 1, y1 = d3.scaleSqrt().domain([0, maxB]).range([0, LANE - 8]);
+      const maxB = d3.max(bins, (q) => q.d + q.r) || 1, y1 = d3.scaleSqrt().domain([0, maxB]).range([0, lh('settled') - 8]);
       bins.forEach((q, k) => {
-        const bx = x(a + k * bw), base = laneY(1) + LANE - 3;
-        if (q.r) g.append('rect').attr('x', bx).attr('width', bwPx).attr('y', base - y1(q.r)).attr('height', y1(q.r)).style('fill', C.rep);
-        if (q.d) g.append('rect').attr('x', bx).attr('width', bwPx).attr('y', base - y1(q.r + q.d)).attr('height', y1(q.r + q.d) - y1(q.r)).style('fill', C.dem);
+        const base = ly('settled') + lh('settled') - 3;
+        if (q.r) g.append('rect').attr('x', xs(k)).attr('width', bwPx).attr('y', base - y1(q.r)).attr('height', y1(q.r)).style('fill', C.rep);
+        if (q.d) g.append('rect').attr('x', xs(k)).attr('width', bwPx).attr('y', base - y1(q.r + q.d)).attr('height', y1(q.r + q.d) - y1(q.r)).style('fill', C.dem);
       });
-      note(1, `max ${maxB} per ${binLabel}`);
+      note('settled', `max ${maxB} per ${binLabel}`);
     }
-    // 2 bets: $ per minute backing D (up) and R (down)
-    if (!missing(2, 'bets_flow')) {
+    if (!missing('kalshi', 'kalshi_cats')) {            // all of Kalshi: contracts per minute, stacked by category
+      const by = KCATS(), keys = CATS.map((c) => c[0]);
+      const cols = keys.map((k) => binSum(by.get(k) || [], a, b, nb, (r) => r.n, 3600).map((v) => v / (bw / 60)));
+      const rows = Array.from({length: nb + 1}, (_, i) => Object.fromEntries(keys.map((k, j) => [k, cols[j][Math.min(i, nb - 1)]])));
+      const st = d3.stack().keys(keys)(rows), mx = d3.max(rows, (r) => keys.reduce((s, k) => s + r[k], 0)) || 1;
+      const y = d3.scaleLinear().domain([0, mx]).range([ly('kalshi') + lh('kalshi') - 3, ly('kalshi') + 6]);
+      st.forEach((layer, j) => g.append('path').datum(layer).attr('d', d3.area().x((d, i) => xs(i)).y0((d) => y(d[0])).y1((d) => y(d[1])).curve(d3.curveStepAfter)).style('fill', CATS[j][2]).style('opacity', 0.85));
+      if (a < N1 && b > N0) for (const t of [N0, N1]) if (t > a && t < b) g.append('line').attr('x1', x(t)).attr('x2', x(t)).attr('y1', ly('kalshi') + 2).attr('y2', ly('kalshi') + lh('kalshi') - 2).style('stroke', C.fg).style('stroke-opacity', 0.4).style('stroke-dasharray', '1 2');
+      note('kalshi', `peak ${fmtN(mx)} contracts/min`);
+    }
+    if (!missing('bets', 'bets_flow')) {
       const s = FLOW(), dv = binSum(s, a, b, nb, (r) => r.d, 600), rv = binSum(s, a, b, nb, (r) => r.rr, 600);
       const per = bw / 60, mx = Math.max(d3.max(dv) || 0, d3.max(rv) || 0) / per || 1;
-      const mid = laneY(2) + LANE / 2, yb = d3.scaleSqrt().domain([0, mx]).range([0, LANE / 2 - 3]);
+      const mid = ly('bets') + lh('bets') / 2, yb = d3.scaleSqrt().domain([0, mx]).range([0, lh('bets') / 2 - 3]);
       for (let k = 0; k < nb; k++) {
-        if (dv[k]) g.append('rect').attr('x', x(a + k * bw)).attr('width', bwPx).attr('y', mid - yb(dv[k] / per)).attr('height', yb(dv[k] / per)).style('fill', C.dem);
-        if (rv[k]) g.append('rect').attr('x', x(a + k * bw)).attr('width', bwPx).attr('y', mid).attr('height', yb(rv[k] / per)).style('fill', C.rep);
+        if (dv[k]) g.append('rect').attr('x', xs(k)).attr('width', bwPx).attr('y', mid - yb(dv[k] / per)).attr('height', yb(dv[k] / per)).style('fill', C.dem);
+        if (rv[k]) g.append('rect').attr('x', xs(k)).attr('width', bwPx).attr('y', mid).attr('height', yb(rv[k] / per)).style('fill', C.rep);
       }
-      note(2, `peak ${usd(mx)}/min`);
+      note('bets', `peak ${usd(mx)}/min`);
     }
-    // 3 big bets as dots
-    if (!missing(3, 'big_bets')) {
+    if (!missing('big', 'big_bets')) {
       const s = BIG().filter((d) => d.t >= a && d.t <= b), rs = d3.scaleSqrt().domain([0, d3.max(s, (d) => d.usd) || 1]).range([1, 7]);
-      const cy = laneY(3) + LANE / 2;
+      const cy = ly('big') + lh('big') / 2, col = (d) => (d.backs === 'D' ? C.dem : d.backs === 'R' ? C.rep : C.ind);
       g.append('g').selectAll('circle').data(s).join('circle').attr('cx', (d) => x(d.t)).attr('cy', (d) => cy + (d.backs === 'D' ? -4 : d.backs === 'R' ? 4 : 0)).attr('r', (d) => rs(d.usd))
-        .style('fill', (d) => (d.backs === 'D' ? C.dem : d.backs === 'R' ? C.rep : C.ind)).style('fill-opacity', 0.4).style('stroke', (d) => (d.backs === 'D' ? C.dem : d.backs === 'R' ? C.rep : C.ind)).style('stroke-width', 0.8);
-      note(3, `${fmtInt(s.length)} of the 1,500 largest`);
+        .style('fill', col).style('fill-opacity', 0.4).style('stroke', col).style('stroke-width', 0.8);
+      note('big', `${fmtInt(s.length)} of the 1,500 largest`);
     }
-    // 4 streams on air, one thin row each
-    if (!missing(4, 'streams')) {
+    if (!missing('streams', 'streams')) {
       const ss = rowsOf('streams').slice().sort((p, q) => (p.lean === q.lean ? p.start - q.start : p.lean < q.lean ? -1 : 1));
-      const rowH = (LANE - 8) / Math.max(1, ss.length);
+      const rowH = (lh('streams') - 8) / Math.max(1, ss.length);
       ss.forEach((s, i) => {
         if (!s.start || s.end < a || s.start > b) return;
         g.append('rect').attr('x', x(Math.max(a, s.start))).attr('width', Math.max(1, x(Math.min(b, s.end)) - x(Math.max(a, s.start))))
-          .attr('y', laneY(4) + 4 + i * rowH).attr('height', Math.max(1, rowH - 1)).style('fill', s.lean === 'L' ? '#5c8fe6' : '#e65c66').style('opacity', 0.85);
+          .attr('y', ly('streams') + 4 + i * rowH).attr('height', Math.max(1, rowH - 1)).style('fill', s.lean === 'L' ? '#5c8fe6' : '#e65c66').style('opacity', 0.85);
       });
     }
-    // 5 live chat, 6 Reddit, 7 Bluesky, 8 Polymarket: rates per minute (Bluesky per 10 min)
-    if (!missing(5, 'chat')) area(5, binSum(rowsOf('chat'), a, b, nb, (r) => r.messages, 60).map((v) => v / (bw / 60)), '#8fa3ff', (mx) => `peak ${fmtInt(Math.round(mx))}/min`);
-    if (!missing(6, 'reddit_hourly')) area(6, binSum(RED_US(), a, b, nb, (r) => r.c, 3600).map((v) => v / (bw / 60)), C.social, (mx) => `peak ${fmtInt(Math.round(mx))}/min · national subs`);
-    if (!missing(7, 'bluesky')) area(7, binSum(BSKY().all, a, b, nb, (r) => r.posts, 600).map((v) => v / (bw / 600)), C.bsky, (mx) => `peak ${fmtInt(Math.round(mx))} per 10 min · sample`);
-    if (!missing(8, 'polymarket')) area(8, binSum(rowsOf('polymarket'), a, b, nb, (r) => r.comments, 3600).map((v) => v / (bw / 3600)), '#c9a2ff', (mx) => `peak ${fmtInt(Math.round(mx))}/hour`);
-    // 9 US gas and WTI, each scaled to its own range in the window
+    if (!missing('chat', 'chat')) area('chat', binSum(rowsOf('chat'), a, b, nb, (r) => r.messages, 60).map((v) => v / (bw / 60)), '#8fa3ff', (mx) => `peak ${fmtInt(Math.round(mx))}/min`);
+    if (!missing('reddit', 'reddit_hourly')) area('reddit', binSum(RED_US(), a, b, nb, (r) => r.c, 3600).map((v) => v / (bw / 60)), C.social, (mx) => `peak ${fmtInt(Math.round(mx))}/min · national subs`);
+    if (!missing('bsky', 'bluesky')) area('bsky', binSum(BSKY().all, a, b, nb, (r) => r.posts, 600).map((v) => v / (bw / 600)), C.bsky, (mx) => `peak ${fmtInt(Math.round(mx))} per 10 min · sample`);
+    if (!missing('poly', 'polymarket')) area('poly', binSum(rowsOf('polymarket'), a, b, nb, (r) => r.comments, 3600).map((v) => v / (bw / 3600)), '#c9a2ff', (mx) => `peak ${fmtInt(Math.round(mx))}/hour`);
     if (ok('gas') && ok('oil')) {
       const toT = (ds) => Date.parse(`${ds}T17:00:00Z`) / 1000;
       [['US gas', GAS().byState.get('US') || [], '#ffb347', null], ['WTI', OIL().get('WTI') || [], C.muted, '3 2']].forEach(([name, s, col, dsh], j) => {
@@ -1005,14 +1145,13 @@
         const pts = (prev ? [{...prev, t: a}] : []).concat(s.map((d) => ({...d, t: toT(d.date)})).filter((d) => d.t > a && d.t <= b));
         if (!pts.length) return;
         if (pts[pts.length - 1].t < b) pts.push({...pts[pts.length - 1], t: b});
-        const [lo, hi] = d3.extent(pts, (d) => d.price), pad = (hi - lo || 1) * 0.1, y9 = yIn(9, lo - pad, hi + pad);
+        const [lo, hi] = d3.extent(pts, (d) => d.price), pd = (hi - lo || 1) * 0.1, y9 = yIn('gas', lo - pd, hi + pd);
         g.append('path').datum(pts).attr('d', d3.line().x((d) => x(d.t)).y((d) => y9(d.price)).curve(d3.curveStepAfter)).style('fill', 'none').style('stroke', col).style('stroke-width', 1.4).style('stroke-dasharray', dsh);
-        note(9, `${name} $${pts[pts.length - 1].price.toFixed(2)}`, col, j * 10);
+        note('gas', `${name} $${pts[pts.length - 1].price.toFixed(2)}`, col, j * 10);
       });
     }
-    // axis
     m.axis.selectAll('*').remove();
-    const {out, step} = ticks(a, b, W), y = TOP + NL * LANE;
+    const {out, step} = ticks(a, b, W), y = TOP + PLOT_H;
     for (const t of out) {
       m.axis.append('line').attr('x1', x(t)).attr('x2', x(t)).attr('y1', y).attr('y2', y + 4);
       m.axis.append('text').attr('x', x(t)).attr('y', y + 15).attr('text-anchor', x(t) < 20 ? 'start' : x(t) > W - 20 ? 'end' : 'middle').text(tickLabel(t, step));
