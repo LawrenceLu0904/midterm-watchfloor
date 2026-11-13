@@ -1,0 +1,1 @@
+{"rows":[{"event":"CONTROLS-2026","chamber":"Senate","winner":"D","settled_ts":1793771216,"volume":115422230},{"event":"CONTROLH-2026","chamber":"House","winner":"D","settled_ts":1793772176,"volume":207292069}],"meta":{"inputs":"Midterm_markets catalog: CONTROLH-2026 / CONTROLS-2026 settlement","built_by":"build_site_data.py"}}

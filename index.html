@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Midterm Watchfloor</title>
+<meta name="description" content="Replay the 2026 U.S. midterms: Kalshi prices and bets, race settlements, Reddit and Bluesky activity, streams, gas and weather, by time and place.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230a0f15'/%3E%3Crect x='5' y='5' width='6' height='6' fill='%23f0b44c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="wf" id="watchfloor">
+  <header class="wf-head">
+    <div class="wf-title-row">
+      <span class="wf-sigil" aria-hidden="true"></span>
+      <h1 class="wf-title">Midterm Watchfloor</h1>
+      <span class="wf-tag">2026 U.S. midterms · Oct 20 – Nov 12 · times ET</span>
+    </div>
+    <p class="wf-takeaway">Kalshi settled Senate control for <b data-draw="tk-sen-winner">—</b> at <b data-draw="tk-sen-time">—</b> and House control for <b data-draw="tk-house-winner">—</b> at <b data-draw="tk-house-time">—</b>. <span data-draw="tk-bigbet"></span> Drag the timeline to replay where races were settled, where the money moved and when people were posting.</p>
+  </header>
+
+  <div class="wf-ticker" role="group" aria-label="Readings at the cursor time">
+    <div class="wf-kpi wf-kpi-clock"><span class="wf-kpi-l">Cursor · ET</span><span class="wf-kpi-v" data-draw="clock">—</span></div>
+    <div class="wf-kpi"><span class="wf-kpi-l">Senate control · P(D)</span><span class="wf-kpi-v" data-draw="kpi-sen">—</span></div>
+    <div class="wf-kpi"><span class="wf-kpi-l">House control · P(D)</span><span class="wf-kpi-v" data-draw="kpi-house">—</span></div>
+    <div class="wf-kpi"><span class="wf-kpi-l">Races settled</span><span class="wf-kpi-v"><span data-draw="kpi-called">—</span><span class="wf-kpi-u"> of <span data-draw="kpi-total">—</span></span></span></div>
+    <div class="wf-kpi"><span class="wf-kpi-l">Bets · past hour · color = side with more</span><span class="wf-kpi-v" data-draw="kpi-bets">—</span></div>
+    <div class="wf-kpi"><span class="wf-kpi-l">Reddit · comments/min</span><span class="wf-kpi-v" data-draw="kpi-reddit">—</span></div>
+    <div class="wf-kpi"><span class="wf-kpi-l">Stream chat · msgs/min</span><span class="wf-kpi-v" data-draw="kpi-chat">—</span></div>
+    <div class="wf-kpi"><span class="wf-kpi-l">US gas · AAA</span><span class="wf-kpi-v" data-draw="kpi-gas">—</span></div>
+    <div class="wf-kpi"><span class="wf-kpi-l">WTI crude</span><span class="wf-kpi-v" data-draw="kpi-wti">—</span></div>
+  </div>
+
+  <div class="wf-main">
+    <section class="wf-panel" aria-label="Map">
+      <div class="wf-toolbar">
+        <div class="wf-seg" role="group" aria-label="Map layer">
+          <button type="button" class="wf-btn" data-layer="races" aria-pressed="true">Races</button>
+          <button type="button" class="wf-btn" data-layer="bets" aria-pressed="false">Bets</button>
+          <button type="button" class="wf-btn" data-layer="social" aria-pressed="false">Social</button>
+          <button type="button" class="wf-btn" data-layer="gas" aria-pressed="false">Gas price</button>
+          <button type="button" class="wf-btn" data-layer="rain" aria-pressed="false">Rain</button>
+          <button type="button" class="wf-btn" data-layer="turnout" aria-pressed="false">Turnout markets</button>
+        </div>
+        <div class="wf-seg" role="group" aria-label="Office" id="wf-office">
+          <button type="button" class="wf-btn" data-office="Senate" aria-pressed="true">Senate</button>
+          <button type="button" class="wf-btn" data-office="Governor" aria-pressed="false">Governor</button>
+          <button type="button" class="wf-btn" data-office="House" aria-pressed="false">House</button>
+        </div>
+      </div>
+      <div class="wf-map" data-draw="map"></div>
+      <div class="wf-legend">
+        <div data-legend="races"><span>R favored</span><span class="wf-ramp wf-ramp-party"></span><span>D favored</span><span>· Kalshi price at the cursor; solid once settled · rings mark races settled in the last 30 min</span></div>
+        <div data-legend="house" hidden><span>More R seats settled</span><span class="wf-ramp wf-ramp-party"></span><span>More D seats settled</span><span>· share of each state's House seats settled by the cursor</span></div>
+        <div data-legend="bets" hidden><span>Bet on the state's races in the hour</span><span>$1K</span><span class="wf-ramp wf-ramp-bets"></span><span data-draw="leg-bets-max">—</span><span>· log scale · Senate, Governor and House markets</span></div>
+        <div data-legend="social" hidden><span>Comments in the state's subreddit this hour vs its usual hour</span><span>½×</span><span class="wf-ramp wf-ramp-social"></span><span>4×+</span></div>
+        <div data-legend="gas" hidden><span>AAA regular, $/gal</span><span data-draw="leg-gas-min">—</span><span class="wf-ramp wf-ramp-gas"></span><span data-draw="leg-gas-max">—</span><span>· state markets start around Oct 9</span></div>
+        <div data-legend="rain" hidden><span>Station-average rain that day</span><span>0 mm</span><span class="wf-ramp wf-ramp-rain"></span><span>25+ mm</span><span>· dots on Nov 3: election-day rain by half-degree cell</span></div>
+        <div data-legend="turnout" hidden><span>Implied votes vs last midterm Senate total</span><span>−20%</span><span class="wf-ramp wf-ramp-turn"></span><span>+20%</span><span>· Senate turnout market, else Governor</span></div>
+      </div>
+    </section>
+
+    <aside class="wf-side">
+      <section class="wf-panel" aria-label="Selected state">
+        <span class="wf-eyebrow">Selected state · click the map</span>
+        <h2 class="wf-st-name" data-draw="st-name">—</h2>
+        <div class="wf-st-block">
+          <h3>Races at the cursor · click one to open its bets</h3>
+          <ul class="wf-races" data-draw="st-races"></ul>
+        </div>
+        <div class="wf-st-block">
+          <h3>Statewide race odds, P(D), in the time window</h3>
+          <div class="wf-spark" data-draw="st-spark"></div>
+        </div>
+        <div class="wf-st-block">
+          <h3>Bets on this state's races</h3>
+          <p class="wf-st-line" data-draw="st-bets">—</p>
+          <div class="wf-spark" data-draw="st-bets-spark"></div>
+        </div>
+        <div class="wf-st-block">
+          <h3>Social activity</h3>
+          <p class="wf-st-line" data-draw="st-social">—</p>
+        </div>
+        <div class="wf-st-block">
+          <h3>Gas, AAA regular, Oct 1 – Nov 12 (state vs US)</h3>
+          <p class="wf-big" data-draw="st-gas">—</p>
+          <div class="wf-spark" data-draw="st-gas-spark"></div>
+        </div>
+        <div class="wf-st-block">
+          <h3>Weather that day</h3>
+          <p class="wf-st-line" data-draw="st-rain">—</p>
+        </div>
+        <div class="wf-st-block">
+          <h3>Turnout market</h3>
+          <p class="wf-st-line" data-draw="st-turnout">—</p>
+        </div>
+      </section>
+
+      <section class="wf-panel">
+        <div class="wf-ph"><h2>Settlement feed</h2><span class="wf-ph-sub">newest first · up to the cursor</span></div>
+        <ol class="wf-feed" data-draw="feed"></ol>
+      </section>
+    </aside>
+  </div>
+
+  <section class="wf-panel" aria-label="Timeline">
+    <div class="wf-tl-bar">
+      <button type="button" class="wf-btn wf-play" data-play-btn aria-pressed="false"><span data-play="idle">Play</span><span data-play="running" hidden>Pause</span></button>
+      <div class="wf-seg" role="group" aria-label="Time window">
+        <button type="button" class="wf-btn" data-range="night" aria-pressed="true">Election night</button>
+        <button type="button" class="wf-btn" data-range="week" aria-pressed="false">Nov 1 – 8</button>
+        <button type="button" class="wf-btn" data-range="campaign" aria-pressed="false">Oct 20 – Nov 12</button>
+      </div>
+      <span class="wf-hint">Drag across the lanes, or focus them and use ← → (Shift for bigger steps). Amber diamonds are key moments.</span>
+    </div>
+    <div class="wf-lanes">
+      <ul class="wf-lane-labels" aria-hidden="true">
+        <li>Chamber control P(D)</li>
+        <li>Races settled</li>
+        <li>Bets $/min · D ▲ R ▼</li>
+        <li>Big bets</li>
+        <li>Streams on air</li>
+        <li>Live-chat msgs/min</li>
+        <li>Reddit comments/min</li>
+        <li>Bluesky top posts</li>
+        <li>Polymarket comments</li>
+        <li>US gas · WTI</li>
+      </ul>
+      <div class="wf-lane-plot" data-draw="lanes"></div>
+    </div>
+  </section>
+
+  <section class="wf-panel" aria-label="Key moments">
+    <div class="wf-ph"><h2>Key moments</h2><span class="wf-ph-sub">settlements, sharp swings and the largest bets on election night · click one to jump there</span></div>
+    <div class="wf-moments">
+      <ol class="wf-feed wf-mom-list" data-draw="moments"></ol>
+      <div data-draw="moment-detail"></div>
+    </div>
+  </section>
+
+  <div class="wf-row2">
+    <section class="wf-panel" aria-label="Bet explorer">
+      <div class="wf-xp-bar">
+        <span class="wf-eyebrow">Bet explorer</span>
+        <label class="wf-hint" for="wf-race-select">Market</label>
+        <select class="wf-select" id="wf-race-select" data-draw="race-select"></select>
+      </div>
+      <div class="wf-xp" data-draw="explorer"></div>
+      <p class="wf-xp-stats" data-draw="explorer-stats">—</p>
+    </section>
+    <section class="wf-panel" aria-label="Bet tape">
+      <div class="wf-ph"><h2>Bet tape · largest bets</h2><span class="wf-ph-sub">newest first · up to the cursor</span></div>
+      <ol class="wf-feed" data-draw="tape"></ol>
+    </section>
+  </div>
+
+  <details class="wf-notes">
+    <summary>How to read this and what is left out</summary>
+    <ul>
+      <li>Race odds are Kalshi prices for "Democrat wins": hourly bid/ask midpoints for Senate and Governor races, and in the bet explorer the volume-weighted price of actual trades (per minute on election night, per 10 minutes otherwise). "Settled" is when Kalshi settled the market after media organizations called the race, close to the call but not the same moment.</li>
+      <li>Bets are Kalshi trades, which are anonymous. One bet is one taker order: all fills of the same contract and side at the same instant. Its size is what the taker paid. A bet "backs D" when it buys YES on the Democrat or NO on the Republican. The tape, the circles in the bet explorer and the key moments leave out orders priced above 97¢ or below 3¢ (collecting near-certain payouts); the flow lanes and totals include them.</li>
+      <li>Reddit counts come from the Arctic Shift archive of Reddit: national political subreddits, plus one main subreddit per state (r/texas, r/Pennsylvania …), so the map's "Social" layer shows where people were talking. Counts only, no post text.</li>
+      <li>Bluesky is a sample: the top posts for each candidate's name and "&lt;state&gt; election" from Nov 3 11 AM to Nov 4 3 PM ET. It shows attention among popular posts, not total volume. X (Twitter) is not included because its read API is paid.</li>
+      <li>Key-moment posts are shown with Bluesky's and Reddit's own embeds, only after you click, and only from accounts with 25,000+ followers (Bluesky) or the national subreddits (Reddit). Nothing from those posts is stored on this site; deleted posts stop showing.</li>
+      <li>The House view colors whole states by settled seats, because district boundaries are not drawn. Several states redrew lines for 2026.</li>
+      <li>Gas is AAA's daily regular-gas average as reported by Kalshi's settled AAA markets. Rain is the simple average of NOAA GHCN-Daily stations in each state, not weighted by population.</li>
+      <li>Turnout markets: at 6 PM ET each day, the vote total Kalshi's ladder puts at 50/50. They are thin (median spread about 10¢), and the comparison is the most recent midterm Senate race in the state, so read direction, not level.</li>
+      <li>Streams: eight election-night streams, four left- and four right-leaning. Chat counts come from the four YouTube streams that have a chat replay. Polymarket counts cover comments on its Senate control, House control and balance-of-power events.</li>
+      <li>Not here yet: polls, official vote counts, AP call times, X.</li>
+    </ul>
+  </details>
+  <p class="wf-foot">Sources: Kalshi Trade API, AAA via Kalshi, NOAA GHCN-Daily, MEDSL, Arctic Shift (Reddit), Bluesky, Polymarket, YouTube chat replays (counts). Not affiliated with any of them. Code and data: <a href="https://github.com/LawrenceLu0904/midterm-watchfloor">github.com/LawrenceLu0904/midterm-watchfloor</a>.</p>
+
+  <div class="wf-scrub" role="group" aria-label="Time cursor">
+    <button type="button" class="wf-btn wf-play" data-play-btn aria-pressed="false"><span data-play="idle">Play</span><span data-play="running" hidden>Pause</span></button>
+    <span class="wf-scrub-clock" data-draw="scrub-clock">—</span>
+    <input type="range" id="wf-scrub" aria-label="Cursor time" data-draw="scrub" step="60">
+  </div>
+</div>
+<script src="assets/d3.v7.9.0.min.js"></script>
+<script src="assets/dash.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
