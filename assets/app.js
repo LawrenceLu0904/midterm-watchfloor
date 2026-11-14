@@ -21,7 +21,7 @@
     amber: '#f0b44c', house: '#86b6ff', senate: '#e9eef5', social: '#c77dff', bsky: '#5fb3ff'};
   const DATASETS = ['states_geo', 'races', 'race_odds', 'milestones', 'control', 'gas', 'oil', 'weather_state', 'weather_grid', 'turnout_races',
     'turnout_daily', 'streams', 'chat', 'polymarket', 'bets_flow', 'bets_state', 'big_bets', 'reddit_hourly', 'reddit_night', 'bluesky', 'moments',
-    'kalshi_cats', 'kalshi_big', 'stocks', 'markets_index', 'kalshi_index', 'polls'];
+    'kalshi_cats', 'kalshi_big', 'stocks', 'markets_index', 'kalshi_index', 'polls', 'heatmap'];
   const WF = window.WF = {t: U(2026, 11, 4, 3), range: RANGES.night.slice(), rangeKey: 'night', layer: 'races', office: 'Senate', state: null,
     race: 'CONTROLS-2026', moment: null, mperiod: null, embedsOn: false, tape: 'market', playing: false, timer: null};
 
@@ -248,7 +248,7 @@
   // ------------------------------------------------------------------ state + redraw plumbing
   const CURSOR_DRAWS = ['map', 'feed', 'clock', 'scrub', 'scrub-clock', 'kpi-sen', 'kpi-house', 'kpi-called', 'kpi-bets', 'kpi-reddit', 'kpi-gas',
     'kpi-wti', 'kpi-chat', 'lanes', 'st-races', 'st-spark', 'st-bets', 'st-bets-spark', 'st-social', 'st-gas', 'st-gas-spark', 'st-rain', 'st-turnout',
-    'tape', 'tape-sub', 'mkt-vol', 'mkt-head', 'mkt-chart', 'mkt-table', 'kpi-kalshi', 'kpi-spx', 'moments', 'moment-tabs', 'moment-detail', 'mkt-polls'];
+    'tape', 'tape-sub', 'mkt-vol', 'mkt-head', 'mkt-chart', 'mkt-table', 'kpi-kalshi', 'kpi-spx', 'moments', 'moment-tabs', 'moment-detail', 'mkt-polls', 'heatmap'];
   const STATE_DRAWS = ['map', 'st-name', 'st-races', 'st-spark', 'st-bets', 'st-bets-spark', 'st-social', 'st-gas', 'st-gas-spark', 'st-rain', 'st-turnout'];
   const RACE_DRAWS = ['race-select', 'mkt-vol', 'mkt-q', 'mkt-head', 'mkt-chart', 'mkt-table', 'mkt-polls', 'st-races', 'tape', 'tape-sub'];
   const redraw = (names) => names.forEach((n) => dash.draw(n));
@@ -1317,6 +1317,159 @@
       m.axis.append('text').attr('x', x(t)).attr('y', y + 15).attr('text-anchor', x(t) < 20 ? 'start' : x(t) > W - 20 ? 'end' : 'middle').text(tickLabel(t, step));
     }
   }
+
+  // ------------------------------------------------------------------ heatmap: every race over 120 days, log time
+  // data/heatmap.json (analysis/heatmap_dem_odds.py --site): one byte per cell, 0-200 = 0-100% chance D, 255 = no market yet.
+  // Columns are log-spaced minutes before the view's anchor (Nov 10 12 AM ET, or each race's own settlement).
+  WF.heat = 'settle';
+  const HEAT_COLOR = d3.scaleLinear().domain([0, 0.25, 0.5, 0.75, 1])
+    .range(['#c8323f', '#f0959c', '#dde4ec', '#8fbaf5', '#2a6fd6']).interpolate(d3.interpolateLab).clamp(true);
+  const HEAT_NONE = '#1a2430';
+  const HEAT_TICKS = [['120d', 172800], ['60d', 86400], ['30d', 43200], ['14d', 20160], ['7d', 10080], ['3d', 4320], ['1d', 1440],
+    ['12h', 720], ['6h', 360], ['2h', 120], ['1h', 60], ['30m', 30], ['10m', 10], ['3m', 3], ['1m', 1]];
+  const HEAT_OFFICES = ['Senate', 'Governor', 'House'];
+  const HM = () => memo('heatmap-m', ['heatmap'], (h) => {
+    const lut = new Uint8ClampedArray(256 * 4);
+    for (let k = 0; k < 256; k++) { const c = d3.rgb(k <= 200 ? HEAT_COLOR(k / 200) : HEAT_NONE); lut.set([c.r, c.g, c.b, 255], k * 4); }
+    const cols = h.cols, views = {};
+    for (const [key, v] of Object.entries(h.views)) {
+      const raw = atob(v.v), bytes = new Uint8Array(raw.length);
+      for (let k = 0; k < raw.length; k++) bytes[k] = raw.charCodeAt(k);
+      const bands = HEAT_OFFICES.map((office) => {
+        const idx = v.order[office] || [];
+        const cv = document.createElement('canvas'); cv.width = cols; cv.height = Math.max(1, idx.length);
+        const ctx = cv.getContext('2d'), img = ctx.createImageData(cols, cv.height);
+        idx.forEach((i, r) => { for (let j = 0; j < cols; j++) { const b = bytes[i * cols + j]; img.data.set(lut.subarray(b * 4, b * 4 + 4), (r * cols + j) * 4); } });
+        ctx.putImageData(img, 0, 0);
+        return {office, idx, cv};
+      });
+      views[key] = {...v, bytes, bands};
+    }
+    const l0 = Math.log10(h.mins[0]), l1 = Math.log10(h.mins[cols]);
+    return {h, views, xf: (min) => (l0 - Math.log10(Math.min(h.mins[0], Math.max(min, h.mins[cols])))) / (l0 - l1)};
+  });
+  const fmtSpan = (min) => (min >= 2880 ? `${Math.round(min / 1440)} days` : min >= 120 ? `${Math.round(min / 60)} hours` : min >= 1.5 ? `${Math.round(min)} min` : '1 min');
+  const pctD = (p) => { const x = p * 100; return Math.round(x) === 50 ? x.toFixed(1) : String(Math.round(x)); };
+  function openRace(id) {
+    WF.tape = 'market'; syncUI(); pickRace(id);
+    document.getElementById('wf-race-select').scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
+  dash.draw('heatmap', {
+    mount(el) {
+      const box = d3.select(el);
+      const msg = box.append('p').attr('class', 'wf-msg');
+      const cv = box.append('canvas').attr('class', 'wf-heat-cv').attr('role', 'img');
+      const note = box.append('p').attr('class', 'wf-hint wf-heat-note');
+      const tip = box.append('div').attr('class', 'wf-tip').attr('hidden', '');
+      const m = {box, msg, cv, note, tip, tipB: tip.append('b'), tipS: tip.append('span'), tipS2: tip.append('span'), lay: null,
+        mono: getComputedStyle(el).getPropertyValue('--wf-mono').trim() || 'monospace'};
+      const hit = (ev) => {
+        if (!m.lay) return null;
+        const [x, y] = d3.pointer(ev, cv.node());
+        const L = m.lay, band = L.bands.find((b) => y >= b.y0 && y < b.y0 + b.h);
+        if (!band || !band.idx.length || x < 0 || x >= L.W) return null;
+        const r = Math.min(band.idx.length - 1, Math.floor(((y - band.y0) / band.h) * band.idx.length));
+        const j = Math.min(L.cols - 1, Math.floor((x / L.W) * L.cols));
+        return {i: band.idx[r], j};
+      };
+      cv.on('pointermove', (ev) => {
+        const p = hit(ev);
+        if (!p) { m.tip.attr('hidden', ''); cv.style('cursor', null); return; }
+        const H = HM(), V = H.views[WF.heat], race = H.h.races[p.i];
+        const min = H.h.mins[p.j + 1], anchor = V.anchor != null ? V.anchor : V.anchors[p.i], t = anchor - min * 60;
+        const b = V.bytes[p.i * H.h.cols + p.j];
+        const settled = race.winner && race.called_ts && t >= race.called_ts;
+        m.tipB.text(`${race.label}${race.office === 'House' ? ' · House' : ''}`);
+        m.tipS.text(b === 255 ? 'no market yet' : settled ? `settled · ${race.winner === 'D' ? 'Democrat' : 'Republican'} won`
+          : `${pctD(b / 200)}% chance the Democrat wins`);
+        m.tipS2.text(`${when(t)} ET · ${fmtSpan(min)} before ${WF.heat === 'settle' && race.called_ts ? 'Kalshi settled it' : 'Nov 10'}`);
+        const [bx, by] = d3.pointer(ev, el);
+        m.tip.attr('hidden', null).style('left', `${Math.max(0, Math.min(bx + 14, el.clientWidth - 270))}px`).style('top', `${Math.max(0, by - 10)}px`);
+        cv.style('cursor', 'pointer');
+      }).on('pointerleave', () => m.tip.attr('hidden', ''))
+        .on('click', (ev) => { const p = hit(ev); if (p) openRace(HM().h.races[p.i].id); });
+      return m;
+    },
+    update(el, m) {
+      if (!ok('heatmap')) {
+        m.cv.attr('hidden', ''); m.note.text('');
+        m.msg.attr('hidden', null).text(stat('heatmap') === 'error' ? 'Failed to load the heatmap.' : 'Loading heatmap…');
+        return;
+      }
+      m.msg.attr('hidden', ''); m.cv.attr('hidden', null);
+      const H = HM(), V = H.views[WF.heat], cols = H.h.cols;
+      const W = Math.max(260, Math.floor(el.clientWidth || 800));
+      const wide = W >= 900, rh = {Senate: wide ? 5 : 4, Governor: wide ? 5 : 4, House: wide ? 1.25 : 1};
+      const HEAD = 18, GAP = 10, AXIS = 26;
+      let y = 0;
+      const bands = V.bands.map((b) => { y += HEAD; const o = {...b, y0: y, h: b.idx.length * rh[b.office]}; y += o.h + GAP; return o; });
+      const Ht = Math.ceil(y - GAP + AXIS);
+      m.lay = {W, cols, bands};
+      const dpr = window.devicePixelRatio || 1, node = m.cv.node();
+      if (node.width !== Math.round(W * dpr) || node.height !== Math.round(Ht * dpr)) {
+        node.width = Math.round(W * dpr); node.height = Math.round(Ht * dpr);
+        m.cv.style('width', `${W}px`).style('height', `${Ht}px`);
+      }
+      const n = HEAT_OFFICES.map((o) => `${(V.order[o] || []).length} ${o}`).join(', ');
+      m.cv.attr('aria-label', `Heatmap of the Kalshi chance the Democrat wins for ${n} races over 120 days, log time, `
+        + (WF.heat === 'settle' ? 'ending at each race\'s settlement.' : 'ending Nov 10.'));
+      const ctx = node.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, Ht);
+      ctx.imageSmoothingEnabled = false;
+      ctx.font = `600 10.5px ${m.mono}`; ctx.textAlign = 'left'; ctx.fillStyle = C.muted;
+      for (const b of bands) {
+        ctx.fillText(`${b.office.toUpperCase()} · ${b.idx.length}`, 0, b.y0 - 6);
+        if (b.idx.length) ctx.drawImage(b.cv, 0, 0, cols, b.idx.length, 0, b.y0, W, b.h);
+      }
+      const vline = (x, color, dash, width) => {
+        ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash); ctx.beginPath();
+        for (const b of bands) { ctx.moveTo(x, b.y0); ctx.lineTo(x, b.y0 + b.h); }
+        ctx.stroke(); ctx.restore();
+      };
+      if (WF.heat === 'nov10') {
+        const xm = Math.round(H.xf((V.anchor - V.mark) / 60) * W) + 0.5;
+        vline(xm, '#0a0f15', [3, 3], 1);
+        ctx.fillStyle = C.muted; ctx.font = `500 10.5px ${m.mono}`; ctx.fillText('polls close', xm + 5, bands[0].y0 - 6);
+        if (WF.t < V.anchor - 60 && WF.t > V.anchor - H.h.mins[0] * 60) vline(H.xf((V.anchor - WF.t) / 60) * W, C.amber, [], 1.5);
+      }
+      const yb = bands[bands.length - 1].y0 + bands[bands.length - 1].h;
+      ctx.strokeStyle = '#2b3a4d'; ctx.fillStyle = C.muted; ctx.font = `500 10.5px ${m.mono}`; ctx.lineWidth = 1;
+      let last = -Infinity;
+      for (const [lab, mm] of HEAT_TICKS.filter(([, mm]) => mm <= H.h.mins[0] * 1.0001)) {
+        const x = H.xf(mm) * W, w = ctx.measureText(lab).width;
+        const left = x < w / 2 ? 0 : x > W - w / 2 ? W - w : x - w / 2;
+        if (left < last + 8) continue;
+        ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, yb + 2); ctx.lineTo(Math.round(x) + 0.5, yb + 7); ctx.stroke();
+        ctx.textAlign = 'left'; ctx.fillText(lab, left, yb + 19);
+        last = left + w;
+      }
+      m.note.text(WF.heat === 'settle'
+        ? `Time before Kalshi settled each race, log scale. Rows sorted by the ${V.sort}. Races not settled yet end at Nov 10.`
+        : `Time before Nov 10, 12 AM ET, log scale. Dotted line: first polls close, Nov 3 7 PM ET. Amber line: the page's time cursor. Rows sorted by the ${V.sort}.`);
+    },
+  });
+  dash.draw('heat-ups', (el) => {
+    if (!ok('heatmap') || el.childElementCount) return;
+    const H = HM();
+    const lab = document.createElement('span'); lab.className = 'wf-hint';
+    lab.textContent = `${H.h.upsets.length} favorites lost (chance D at 6 PM ET, Nov 3):`;
+    el.append(lab);
+    for (const u of H.h.upsets) {
+      const r = H.h.races[u.i];
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = `wf-heat-chip ${r.winner === 'D' ? 'is-d' : 'is-r'}`;
+      b.textContent = `${r.label} ${pctD(u.p)}%`;
+      b.title = `${r.label}: ${pctD(u.p)}% chance the Democrat wins at 6 PM ET on Nov 3; the ${r.winner === 'D' ? 'Democrat' : 'Republican'} won. Click to open its market.`;
+      b.addEventListener('click', () => openRace(r.id));
+      el.append(b);
+    }
+  });
+  document.querySelectorAll('.wf [data-heat]').forEach((b) => b.addEventListener('click', () => {
+    WF.heat = b.dataset.heat;
+    document.querySelectorAll('.wf [data-heat]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.heat === WF.heat)));
+    dash.draw('heatmap');
+  }));
 
   // ------------------------------------------------------------------ start
   syncUI();
