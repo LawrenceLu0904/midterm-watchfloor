@@ -29,7 +29,7 @@ Each JSON file is `{rows: [...], meta: {inputs}}`. Times are UTC Unix seconds; t
 
 | file | what |
 |---|---|
-| `races`, `race_odds`, `milestones`, `control` | Kalshi 2026 Senate, Governor and House race markets: winner, settlement time, hourly odds; chamber-control odds (per minute on election night) |
+| `races`, `race_odds`, `milestones`, `control` | Kalshi 2026 Senate, Governor and House race markets: winner, settlement time, hourly odds (per minute on election night, from 1-minute bid/ask candles); chamber-control odds (per minute on election night) |
 | `bets_flow`, `bets_state`, `big_bets`, `race/<id>` | Kalshi trades, Oct 4 – Nov 12, grouped into bets (one taker order = all its fills at one instant), by which party the bet backs (midterm markets include chamber control and the House + Senate balance-of-power market); each race file also has every outcome's last traded price per minute (election night) or per 10 minutes |
 | `trades/<race>/<day>` | Every bet in that race's markets on that Eastern-time day: `[time, outcome, Yes=1/No=0, price paid, contracts, $ paid]` |
 | `polls` | General-election polls since Aug 1 for 143 races (1,134 polls, one version per pollster and date), from Wikipedia (CC BY-SA 4.0) and VoteHub (CC BY 4.0), matched to Kalshi races |
